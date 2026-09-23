@@ -8,6 +8,15 @@ struct ReportView: View {
 
     @State private var pdfURL: URL?
     @State private var jsonURL: URL?
+    @State private var isEditingMeasurements = false
+
+    private var tapeEntries: [MeasurementKey: Double] {
+        Dictionary(
+            uniqueKeysWithValues: record.measurements
+                .filter { $0.source == .tape }
+                .map { ($0.key, $0.valueMM) }
+        )
+    }
 
     private var grouped: [(source: MeasurementSource, values: [MeasurementValue])] {
         let ordered: [MeasurementSource] = [.scan, .tape, .estimated]
@@ -43,10 +52,34 @@ struct ReportView: View {
         }
         .navigationTitle("适配报告")
         .toolbar {
+            if !embedded {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("编辑") {
+                        isEditingMeasurements = true
+                    }
+                }
+            }
             if embedded, let onDone {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("完成") { onDone() }
                 }
+            }
+        }
+        .sheet(isPresented: $isEditingMeasurements) {
+            NavigationStack {
+                ManualEntryView(
+                    initialEntries: tapeEntries,
+                    scanSkipped: false,
+                    onContinue: { entries in
+                        saveEdits(entries)
+                        isEditingMeasurements = false
+                    },
+                    onBack: {
+                        isEditingMeasurements = false
+                    }
+                )
+                .navigationTitle("编辑测量值")
+                .navigationBarTitleDisplayMode(.inline)
             }
         }
         .task {
@@ -141,6 +174,23 @@ struct ReportView: View {
         if let jsonData = ExportService.scanJSON(record: record) {
             jsonURL = ExportService.writeTempFile(jsonData, filename: "KiguFit-\(basename).json")
         }
+    }
+
+    private func saveEdits(_ entries: [MeasurementKey: Double]) {
+        var merged: [MeasurementKey: MeasurementValue] = [:]
+        for value in record.measurements where value.source == .scan {
+            merged[value.key] = value
+        }
+        for (key, numeric) in entries {
+            merged[key] = MeasurementValue(key: key, valueMM: numeric, source: .tape, confidence: 1.0)
+        }
+        let completed = HeadEstimator.complete(Array(merged.values))
+            .sorted { $0.key.rawValue < $1.key.rawValue }
+        record.measurements = completed
+        if let payload = record.shellPayload {
+            record.verdict = FitEngine.evaluate(shell: payload, measurements: completed)
+        }
+        generateExports()
     }
 }
 
