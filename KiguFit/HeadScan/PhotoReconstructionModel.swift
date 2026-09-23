@@ -28,9 +28,9 @@ final class PhotoReconstructionModel {
         self.modelContext = modelContext
     }
 
-    func start(imageData: [Data]) {
-        guard !imageData.isEmpty else {
-            phase = .failed("未选择照片")
+    func start(imageData: [Data], videoURLs: [URL] = []) {
+        guard !imageData.isEmpty || !videoURLs.isEmpty else {
+            phase = .failed("未选择照片或视频")
             return
         }
         phase = .preparing
@@ -40,22 +40,44 @@ final class PhotoReconstructionModel {
 
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        } catch {
+            phase = .failed(error.localizedDescription)
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else { return }
             var written = 0
             for (index, data) in imageData.enumerated() {
                 guard let image = UIImage(data: data),
                       let jpeg = image.jpegData(compressionQuality: 0.92) else { continue }
-                let url = directory.appendingPathComponent(String(format: "photo_%03d.jpg", index))
-                try jpeg.write(to: url)
+                let url = directory.appendingPathComponent(String(format: "photo_%04d.jpg", index))
+                try? jpeg.write(to: url)
                 written += 1
             }
-            imageCount = written
+
+            let perVideo = max(20, min(150, 240 / max(videoURLs.count, 1)))
+            for (index, videoURL) in videoURLs.enumerated() {
+                do {
+                    let count = try await VideoFrameExtractor.extractFrames(
+                        from: videoURL,
+                        into: directory,
+                        startIndex: written,
+                        targetCount: perVideo,
+                        prefix: "video\(index)"
+                    )
+                    written += count
+                } catch {
+                    continue
+                }
+            }
+
+            self.imageCount = written
             guard written >= 3 else {
-                phase = .failed("有效照片不足，建议 30 张以上")
+                self.phase = .failed("可用画面不足，建议录 30 秒以上的转圈视频，或多选几张照片")
                 return
             }
-            reconstruct(directory: directory)
-        } catch {
-            phase = .failed(error.localizedDescription)
+            self.reconstruct(directory: directory)
         }
     }
 

@@ -1,12 +1,29 @@
 import PhotosUI
 import SwiftData
 import SwiftUI
+import UniformTypeIdentifiers
+
+struct VideoFile: Transferable {
+    let url: URL
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(contentType: .movie) { movie in
+            SentTransferredFile(movie.url)
+        } importing: { received in
+            let copy = FileManager.default.temporaryDirectory
+                .appendingPathComponent("kigufit-import-\(UUID().uuidString).mov")
+            try FileManager.default.copyItem(at: received.file, to: copy)
+            return Self(url: copy)
+        }
+    }
+}
 
 struct PhotoReconstructionView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
     @State private var model = PhotoReconstructionModel()
     @State private var selectedItems: [PhotosPickerItem] = []
+    @State private var selectedVideos: [PhotosPickerItem] = []
     @State private var isLoadingPhotos = false
 
     var body: some View {
@@ -43,28 +60,36 @@ struct PhotoReconstructionView: View {
             Section("自扫推荐流程") {
                 guideRow("手机固定", detail: "三脚架或支架，高度与头齐平，镜头正对坐姿头部")
                 guideRow("Apple Watch 遥控拍摄", detail: "手表相机 App 可实时看画面按快门；每转约 15° 拍一张")
+                guideRow("也可以直接录视频", detail: "固定手机录 4K30 / 1080p60 转圈视频（每圈 25–40 秒），App 自动抽帧重建")
                 guideRow("转 2–3 圈，每圈换俯仰", detail: "一圈平视、一圈略低头、一圈略抬头，覆盖头顶与下巴")
                 guideRow("背景干净", detail: "背后一面纯色墙（白墙最佳），避免杂物；穿深色衣服")
                 guideRow("头发压平", detail: "浅色头套 / 泳帽把头发压贴头皮再拍")
             }
-            Section("选择照片") {
+            Section("选择素材") {
                 PhotosPicker(selection: $selectedItems, maxSelectionCount: 80, matching: .images) {
                     Label("从相册选择照片", systemImage: "photo.on.rectangle.angled")
                 }
                 if !selectedItems.isEmpty {
-                    Text("已选 \(selectedItems.count) 张")
+                    Text("已选 \(selectedItems.count) 张照片")
+                        .foregroundStyle(.secondary)
+                }
+                PhotosPicker(selection: $selectedVideos, maxSelectionCount: 3, matching: .videos) {
+                    Label("从相册选择视频（自动抽帧）", systemImage: "video")
+                }
+                if !selectedVideos.isEmpty {
+                    Text("已选 \(selectedVideos.count) 段视频")
                         .foregroundStyle(.secondary)
                 }
                 Button {
                     loadAndStart()
                 } label: {
-                    Label("开始重建（建议 30–60 张）", systemImage: "wand.and.stars")
+                    Label("开始重建", systemImage: "wand.and.stars")
                 }
-                .disabled(selectedItems.count < 3 || isLoadingPhotos)
+                .disabled((selectedItems.isEmpty && selectedVideos.isEmpty) || isLoadingPhotos)
                 if isLoadingPhotos {
                     HStack(spacing: 8) {
                         ProgressView()
-                        Text("正在读取照片…")
+                        Text("正在读取素材…")
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -151,9 +176,16 @@ struct PhotoReconstructionView: View {
                     datas.append(data)
                 }
             }
+            var urls: [URL] = []
+            for item in selectedVideos {
+                if let file = try? await item.loadTransferable(type: VideoFile.self) {
+                    urls.append(file.url)
+                }
+            }
             isLoadingPhotos = false
             selectedItems = []
-            model.start(imageData: datas)
+            selectedVideos = []
+            model.start(imageData: datas, videoURLs: urls)
         }
     }
 }
