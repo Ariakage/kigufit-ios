@@ -6,6 +6,7 @@ struct ManualEntryView: View {
     let onBack: () -> Void
 
     @State private var values: [MeasurementKey: String]
+    @State private var guideKey: MeasurementKey?
 
     private static let requiredKeys: [MeasurementKey] = [.headCircumference, .headHeight]
     private static let optionalKeys: [MeasurementKey] = [
@@ -68,12 +69,25 @@ struct ManualEntryView: View {
                 .disabled(!isValid)
             }
         }
+        .sheet(item: $guideKey) { key in
+            MeasurementGuideSheet(key: key)
+        }
     }
 
     private func measurementRow(_ key: MeasurementKey) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(key.displayName)
+                if key.guide != nil {
+                    Button {
+                        guideKey = key
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .font(.footnote)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.blue)
+                }
                 Spacer()
                 TextField("跳过", text: binding(for: key))
                     .keyboardType(.decimalPad)
@@ -117,5 +131,50 @@ struct ManualEntryView: View {
             }
         }
         return entries
+    }
+}
+
+struct MeasurementGuideSheet: View {
+    let key: MeasurementKey
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if let guide = key.guide {
+                    Section("方法") {
+                        ForEach(Array(guide.method.enumerated()), id: \.offset) { index, step in
+                            HStack(alignment: .top, spacing: 10) {
+                                Text("\(index + 1).")
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(.blue)
+                                    .frame(width: 18, alignment: .leading)
+                                Text(step)
+                            }
+                        }
+                    }
+                    Section("位置") {
+                        Text(guide.location)
+                    }
+                    Section("细节与注意") {
+                        ForEach(guide.details, id: \.self) { detail in
+                            Label(detail, systemImage: "exclamationmark.circle")
+                                .font(.callout)
+                        }
+                    }
+                } else {
+                    Text("暂无说明")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle(key.displayName)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("关闭") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }

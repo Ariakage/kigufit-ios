@@ -32,7 +32,6 @@ final class ScanFlowModel {
         scanMeasurements = []
         scanSkipped = false
         step = .scan
-        scanSession.start()
     }
 
     func skipScan() {

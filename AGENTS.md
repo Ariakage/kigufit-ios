@@ -6,8 +6,8 @@
 ## 技术栈与约束
 
 - 纯 SwiftUI（不做 Flutter），最低 iOS 17，仅竖屏
-- 前置 TrueDepth + ARKit `ARFaceTrackingConfiguration`（无预览 ARSession 采集）
-- SwiftData 持久化；`ImageRenderer` 生成 PDF
+- 前置 TrueDepth + ARKit `ARFaceTrackingConfiguration`（无预览 ARSession；多姿势引导采集：正视/左转/右转/抬头/低头，扫描前有准备清单：去眼镜/刘海/遮挡物）
+- SwiftData 持久化；`UIGraphicsPDFRenderer` 生成 PDF
 - 自签部署：免费 Apple ID（7 天有效期，AltStore/SideStore 续签），真机调试必需
 - 权限：`NSCameraUsageDescription`（已配置）；无 TrueDepth 设备降级为纯手动模式
 - 提交规范：Conventional Commits（gitmessage 模板：type(scope): subject，中文 subject）

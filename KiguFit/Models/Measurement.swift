@@ -93,6 +93,110 @@ nonisolated enum MeasurementKey: String, Codable, CaseIterable, Hashable, Sendab
             return nil
         }
     }
+
+    var guide: MeasurementGuide? {
+        switch self {
+        case .headCircumference:
+            return MeasurementGuide(
+                method: [
+                    "用软尺从眉弓上方、耳朵上方出发，水平绕头一周",
+                    "在额头上方约 1cm 处让软尺交叉，读取交叉点数值",
+                    "重复测量两次取平均值，两次差值不超过 5mm"
+                ],
+                location: "经过前额最凸点与后脑最凸点，高于耳朵上缘",
+                details: [
+                    "软尺贴住皮肤但不勒紧，发厚时可略压平头发",
+                    "保持软尺水平，不要斜着从前额绕到后颈",
+                    "读数时视线与软尺垂直，避免斜视读偏"
+                ]
+            )
+        case .headHeight:
+            return MeasurementGuide(
+                method: [
+                    "贴墙站立，下巴自然闭合（不要仰头或低头）",
+                    "用直尺或书本水平压住头顶最高点，标记墙面",
+                    "测量地面（或椅面）到标记点的垂直距离"
+                ],
+                location: "下巴尖最低点到头顶最高点的垂直距离",
+                details: [
+                    "头发蓬松时压平再量；不要用力压头",
+                    "下颌自然放松，牙齿轻咬合",
+                    "建议请他人协助读取，减少误差"
+                ]
+            )
+        case .headWidth:
+            return MeasurementGuide(
+                method: [
+                    "用两把直尺或两本书夹住头部两侧最宽处",
+                    "保持两尺平行，取出后测量两尺间距"
+                ],
+                location: "耳朵上方、头部最宽处（约眉上 3–5cm 水平）",
+                details: [
+                    "夹持力度以贴住头发不压陷为准",
+                    "此值用于与头壳内腔宽度对照，务必量至最宽处",
+                    "可与扫描的头宽估算值交叉验证"
+                ]
+            )
+        case .headDepth:
+            return MeasurementGuide(
+                method: [
+                    "用两把直尺分别贴住额头最凸点和后脑最凸点",
+                    "保持两尺平行，取出后测量间距"
+                ],
+                location: "眉间额头最凸点 → 后脑最凸点，水平直线距离",
+                details: [
+                    "不要沿弧线量（那是额-顶-后脑弧）",
+                    "头发厚的位置以头皮为准"
+                ]
+            )
+        case .earToEarOverTop:
+            return MeasurementGuide(
+                method: [
+                    "软尺一端放于一侧耳根上缘",
+                    "沿头顶正中越过，拉到另一侧耳根上缘",
+                    "读取弧线长度"
+                ],
+                location: "左耳根上缘 → 头顶正中 → 右耳根上缘",
+                details: [
+                    "软尺要贴头皮、走头顶正中线",
+                    "头发厚时可略压平"
+                ]
+            )
+        case .foreheadToOcciputOverTop:
+            return MeasurementGuide(
+                method: [
+                    "软尺一端放于眉上额头正中（发际线附近）",
+                    "沿头顶正中越过后脑最凸点",
+                    "读取弧线长度"
+                ],
+                location: "额头正中（眉上） → 头顶正中 → 后脑最凸点",
+                details: [
+                    "与头长（直线）不同，这是贴合头皮的弧长",
+                    "用于估算头壳前后方向的内腔余量"
+                ]
+            )
+        case .neckCircumference:
+            return MeasurementGuide(
+                method: [
+                    "软尺绕喉结下方最细处一周",
+                    "保持水平，读数即可"
+                ],
+                location: "喉结下方、颈部最细处",
+                details: [
+                    "不要勒紧，留一指余量",
+                    "此值用于评估头壳底部开口与颈部活动空间"
+                ]
+            )
+        default:
+            return nil
+        }
+    }
+}
+
+nonisolated struct MeasurementGuide: Hashable, Sendable {
+    var method: [String]
+    var location: String
+    var details: [String]
 }
 
 nonisolated struct MeasurementValue: Codable, Hashable, Sendable, Identifiable {

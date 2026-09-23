@@ -7,6 +7,8 @@ struct FaceFrame: Sendable {
     var rightEye: SIMD3<Float>
     var faceTransform: [Float]
     var timestamp: Double
+    var yaw: Float
+    var pitch: Float
 }
 
 struct ScanCaptureResult: Sendable {
@@ -31,7 +33,7 @@ struct ScanCaptureResult: Sendable {
 
 enum FaceMeshCodec {
     static let magic: UInt32 = 0x4B47_5531
-    static let version: UInt32 = 1
+    static let version: UInt32 = 2
 
     static func encode(_ result: ScanCaptureResult) -> Data {
         var data = Data()
@@ -47,6 +49,8 @@ enum FaceMeshCodec {
         data.append(floats: result.faceTransform)
         for frame in result.frames {
             data.append(double: frame.timestamp)
+            data.append(float: frame.yaw)
+            data.append(float: frame.pitch)
             data.append(vector: frame.leftEye)
             data.append(vector: frame.rightEye)
             data.append(floats: frame.faceTransform)
@@ -74,6 +78,8 @@ enum FaceMeshCodec {
         frames.reserveCapacity(Int(frameCount))
         for _ in 0..<frameCount {
             guard let ts = reader.readDouble(),
+                  let yaw = reader.readFloat(),
+                  let pitch = reader.readFloat(),
                   let le = reader.readVector(),
                   let re = reader.readVector(),
                   let count = reader.readFloatsCount(),
@@ -81,7 +87,7 @@ enum FaceMeshCodec {
                   let verts = reader.readVertices() else {
                 return nil
             }
-            frames.append(FaceFrame(vertices: verts, leftEye: le, rightEye: re, faceTransform: transform, timestamp: ts))
+            frames.append(FaceFrame(vertices: verts, leftEye: le, rightEye: re, faceTransform: transform, timestamp: ts, yaw: yaw, pitch: pitch))
         }
         return ScanCaptureResult(
             averagedVertices: averaged,

@@ -10,21 +10,42 @@ final class FaceScanSession: NSObject, ARSessionDelegate {
         case unsupported
         case unauthorized
         case running
-        case collecting(captured: Int, target: Int)
+        case collecting(pose: ScanPose, collected: Int, target: Int)
         case finished
         case failed(String)
     }
 
     private(set) var state: State = .idle
     private(set) var result: ScanCaptureResult?
+    private(set) var liveYaw: Double = 0
+    private(set) var livePitch: Double = 0
+    private(set) var isPoseSatisfied = false
+    private(set) var feedback: String = ""
 
-    var targetFrameCount = 45
+    let poses: [ScanPose] = ScanPose.standardSequence
+    var minimumFrameInterval: TimeInterval = 0.1
 
     private let session = ARSession()
+    private var poseIndex = 0
+    private var poseFrameCount = 0
     private var frames: [FaceFrame] = []
+    private var lastCollectedAt: TimeInterval = 0
     private var sumVertices: [SIMD3<Float>] = []
     private var sumLeft: SIMD3<Float> = .zero
     private var sumRight: SIMD3<Float> = .zero
+
+    var totalTargetFrames: Int {
+        poses.reduce(0) { $0 + $1.targetFrames }
+    }
+
+    var collectedFrames: Int {
+        frames.count
+    }
+
+    var currentPose: ScanPose? {
+        guard poseIndex < poses.count else { return nil }
+        return poses[poseIndex]
+    }
 
     override init() {
         super.init()
@@ -32,11 +53,18 @@ final class FaceScanSession: NSObject, ARSessionDelegate {
     }
 
     func start() {
+        poseIndex = 0
+        poseFrameCount = 0
         frames = []
         sumVertices = []
         sumLeft = .zero
         sumRight = .zero
+        lastCollectedAt = 0
         result = nil
+        liveYaw = 0
+        livePitch = 0
+        isPoseSatisfied = false
+        feedback = ""
 
         guard ARFaceTrackingConfiguration.isSupported else {
             state = .unsupported
@@ -73,15 +101,23 @@ final class FaceScanSession: NSObject, ARSessionDelegate {
         let configuration = ARFaceTrackingConfiguration()
         configuration.isLightEstimationEnabled = false
         configuration.maximumNumberOfTrackedFaces = 1
-        state = .running
         session.run(configuration, options: [.resetTracking, .removeExistingAnchors])
+        poseIndex = 0
+        poseFrameCount = 0
+        state = .collecting(pose: poses[0], collected: 0, target: poses[0].targetFrames)
     }
 
-    nonisolated func session(_ session: ARSession, didUpdate anchors: [ARAnchor]) {
-        guard let face = anchors.compactMap({ $0 as? ARFaceAnchor }).first,
+    nonisolated func session(_ session: ARSession, didUpdate frame: ARFrame) {
+        guard let face = frame.anchors.compactMap({ $0 as? ARFaceAnchor }).first,
               face.isTracked else { return }
 
         let vertices = face.geometry.vertices
+        let sign = PoseDetector.forwardSign(vertices: vertices)
+        let pose = PoseDetector.pose(
+            faceTransform: face.transform,
+            cameraTransform: frame.camera.transform,
+            forwardSign: sign
+        )
         let left = SIMD3<Float>(
             face.leftEyeTransform.columns.3.x,
             face.leftEyeTransform.columns.3.y,
@@ -92,14 +128,23 @@ final class FaceScanSession: NSObject, ARSessionDelegate {
             face.rightEyeTransform.columns.3.y,
             face.rightEyeTransform.columns.3.z
         )
-        let transform = flatten(face.transform)
+        let transform = Self.flatten(face.transform)
+        let timestamp = frame.timestamp
 
         Task { @MainActor [weak self] in
-            self?.append(vertices: vertices, left: left, right: right, transform: transform)
+            self?.handle(
+                vertices: vertices,
+                left: left,
+                right: right,
+                transform: transform,
+                timestamp: timestamp,
+                yaw: pose.yaw,
+                pitch: pose.pitch
+            )
         }
     }
 
-    nonisolated private func flatten(_ matrix: simd_float4x4) -> [Float] {
+    nonisolated private static func flatten(_ matrix: simd_float4x4) -> [Float] {
         [
             matrix.columns.0.x, matrix.columns.0.y, matrix.columns.0.z, matrix.columns.0.w,
             matrix.columns.1.x, matrix.columns.1.y, matrix.columns.1.z, matrix.columns.1.w,
@@ -108,23 +153,45 @@ final class FaceScanSession: NSObject, ARSessionDelegate {
         ]
     }
 
-    private func append(vertices: [SIMD3<Float>], left: SIMD3<Float>, right: SIMD3<Float>, transform: [Float]) {
+    private func handle(
+        vertices: [SIMD3<Float>],
+        left: SIMD3<Float>,
+        right: SIMD3<Float>,
+        transform: [Float],
+        timestamp: TimeInterval,
+        yaw: Double,
+        pitch: Double
+    ) {
         switch state {
         case .running, .collecting:
             break
         default:
             return
         }
-        guard frames.count < targetFrameCount else { return }
 
-        let frame = FaceFrame(
+        liveYaw = yaw
+        livePitch = pitch
+
+        guard poseIndex < poses.count else { return }
+        let pose = poses[poseIndex]
+        let satisfied = pose.matches(yaw: yaw, pitch: pitch)
+        isPoseSatisfied = satisfied
+        feedback = pose.feedback(yaw: yaw, pitch: pitch)
+
+        guard satisfied else { return }
+        guard timestamp - lastCollectedAt >= minimumFrameInterval else { return }
+
+        lastCollectedAt = timestamp
+        let faceFrame = FaceFrame(
             vertices: vertices,
             leftEye: left,
             rightEye: right,
             faceTransform: transform,
-            timestamp: Date().timeIntervalSince1970
+            timestamp: timestamp,
+            yaw: Float(yaw),
+            pitch: Float(pitch)
         )
-        frames.append(frame)
+        frames.append(faceFrame)
 
         if sumVertices.isEmpty {
             sumVertices = [SIMD3<Float>](repeating: .zero, count: vertices.count)
@@ -137,11 +204,19 @@ final class FaceScanSession: NSObject, ARSessionDelegate {
         sumLeft += left
         sumRight += right
 
-        let captured = frames.count
-        state = .collecting(captured: captured, target: targetFrameCount)
+        poseFrameCount += 1
 
-        if captured >= targetFrameCount {
-            completeCapture()
+        if poseFrameCount >= pose.targetFrames {
+            poseIndex += 1
+            poseFrameCount = 0
+            if poseIndex >= poses.count {
+                completeCapture()
+                return
+            }
+            let nextPose = poses[poseIndex]
+            state = .collecting(pose: nextPose, collected: 0, target: nextPose.targetFrames)
+        } else {
+            state = .collecting(pose: pose, collected: poseFrameCount, target: pose.targetFrames)
         }
     }
 
@@ -156,7 +231,7 @@ final class FaceScanSession: NSObject, ARSessionDelegate {
         let averaged = sumVertices.map { $0 / count }
         let left = sumLeft / count
         let right = sumRight / count
-        let quality = min(1.0, Double(frames.count) / Double(targetFrameCount))
+        let quality = min(1.0, Double(frames.count) / Double(totalTargetFrames))
 
         result = ScanCaptureResult(
             averagedVertices: averaged,
