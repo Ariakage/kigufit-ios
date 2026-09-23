@@ -1,9 +1,12 @@
 import SwiftUI
 import SwiftData
+import UniformTypeIdentifiers
 
 struct ShellsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \ShellProfile.createdAt) private var shells: [ShellProfile]
+    @State private var isShowingImporter = false
+    @State private var importError: String?
 
     var body: some View {
         NavigationStack {
@@ -12,7 +15,7 @@ struct ShellsView: View {
                     ContentUnavailableView(
                         "暂无头壳档案",
                         systemImage: "cube",
-                        description: Text("点击右上角 + 添加头壳（暂提供内置示例）")
+                        description: Text("可添加内置示例，或导入 kigufit.shell/v1 JSON 档案")
                     )
                 } else {
                     List {
@@ -36,12 +39,39 @@ struct ShellsView: View {
             .navigationTitle("头壳档案")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        addSampleShell()
+                    Menu {
+                        Button {
+                            addSampleShell()
+                        } label: {
+                            Label("添加内置示例", systemImage: "cube")
+                        }
+                        Button {
+                            isShowingImporter = true
+                        } label: {
+                            Label("导入 JSON 档案", systemImage: "square.and.arrow.down")
+                        }
                     } label: {
-                        Label("添加示例头壳", systemImage: "plus")
+                        Label("添加", systemImage: "plus")
                     }
                 }
+            }
+            .fileImporter(
+                isPresented: $isShowingImporter,
+                allowedContentTypes: [.json],
+                allowsMultipleSelection: true
+            ) { result in
+                handleImport(result)
+            }
+            .alert(
+                "导入失败",
+                isPresented: Binding(
+                    get: { importError != nil },
+                    set: { if !$0 { importError = nil } }
+                )
+            ) {
+                Button("好", role: .cancel) {}
+            } message: {
+                Text(importError ?? "")
             }
         }
     }
@@ -59,14 +89,41 @@ struct ShellsView: View {
             }
         }
     }
+
+    private func handleImport(_ result: Result<[URL], Error>) {
+        do {
+            let urls = try result.get()
+            var imported = 0
+            for url in urls {
+                let accessing = url.startAccessingSecurityScopedResource()
+                defer {
+                    if accessing { url.stopAccessingSecurityScopedResource() }
+                }
+                let data = try Data(contentsOf: url)
+                let payload = try ShellProfilePayload.decode(from: data)
+                let sourceName = payload.source?.file ?? url.deletingPathExtension().lastPathComponent
+                modelContext.insert(ShellProfile(payload: payload, sourceFileName: sourceName))
+                imported += 1
+            }
+            if imported == 0 {
+                importError = "未找到有效的 kigufit.shell/v1 档案"
+            }
+        } catch {
+            importError = error.localizedDescription
+        }
+    }
 }
 
 struct ShellDetailView: View {
     let shell: ShellProfile
+    @State private var exportURL: URL?
+    @State private var isRenaming = false
+    @State private var newName = ""
 
     var body: some View {
         List {
             if let payload = shell.payload {
+                profileSection(payload)
                 Section("外形尺寸") {
                     LabeledContent("宽", value: mm(payload.outer.width))
                     LabeledContent("深", value: mm(payload.outer.depth))
@@ -110,8 +167,80 @@ struct ShellDetailView: View {
             } else {
                 ContentUnavailableView("档案数据无效", systemImage: "exclamationmark.triangle")
             }
+
+            Section("导出") {
+                if let exportURL {
+                    ShareLink(item: exportURL, preview: SharePreview("\(shell.name).json")) {
+                        Label("导出 JSON 档案", systemImage: "square.and.arrow.up")
+                    }
+                } else {
+                    HStack {
+                        ProgressView()
+                        Text("正在生成导出文件…").foregroundStyle(.secondary)
+                    }
+                }
+            }
         }
         .navigationTitle(shell.name)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("重命名") {
+                    newName = shell.name
+                    isRenaming = true
+                }
+            }
+        }
+        .alert("重命名头壳", isPresented: $isRenaming) {
+            TextField("名称", text: $newName)
+            Button("保存") {
+                shell.rename(to: newName)
+            }
+            Button("取消", role: .cancel) {}
+        }
+        .task {
+            generateExport()
+        }
+    }
+
+    @ViewBuilder
+    private func profileSection(_ payload: ShellProfilePayload) -> some View {
+        let points = payload.inner.widthProfile.sorted { $0.z < $1.z }
+        if points.count >= 2 {
+            Section("内腔宽度剖面") {
+                Canvas { context, size in
+                    let minZ = points.first?.z ?? 0
+                    let maxZ = points.last?.z ?? 1
+                    let widths = points.map(\.width)
+                    let minW = widths.min() ?? 0
+                    let maxW = widths.max() ?? 1
+                    let spanZ = max(maxZ - minZ, 1)
+                    let spanW = max(maxW - minW, 1)
+
+                    var path = Path()
+                    for (index, point) in points.enumerated() {
+                        let x = CGFloat((point.z - minZ) / spanZ) * size.width
+                        let y = size.height - CGFloat((point.width - minW) / spanW) * (size.height - 12) - 6
+                        if index == 0 {
+                            path.move(to: CGPoint(x: x, y: y))
+                        } else {
+                            path.addLine(to: CGPoint(x: x, y: y))
+                        }
+                    }
+                    context.stroke(path, with: .color(.blue), lineWidth: 2)
+                }
+                .frame(height: 120)
+                .padding(.vertical, 4)
+                Text("横轴：内底→顶部  纵轴：内腔宽度（左窄右宽）")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private func generateExport() {
+        guard let payload = shell.payload, let data = try? payload.encoded() else { return }
+        let name = ExportService.sanitizedFilename(shell.name)
+        exportURL = ExportService.writeTempFile(data, filename: "KiguFit-shell-\(name).json")
     }
 
     private func mm(_ value: Double) -> String {

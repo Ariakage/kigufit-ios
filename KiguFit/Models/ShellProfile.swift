@@ -110,6 +110,19 @@ final class ShellProfile {
         try? ShellProfilePayload.decode(from: payloadData)
     }
 
+    func rename(to newName: String) {
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        name = trimmed
+        updatedAt = Date()
+        if var current = payload {
+            current.name = trimmed
+            if let data = try? current.encoded() {
+                payloadData = data
+            }
+        }
+    }
+
     var outerSummary: String {
         guard let outer = payload?.outer else { return "" }
         return String(format: "外 %.0f×%.0f×%.0f mm", outer.width, outer.depth, outer.height)
