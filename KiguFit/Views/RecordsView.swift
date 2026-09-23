@@ -5,6 +5,15 @@ struct RecordsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \ScanRecord.createdAt, order: .reverse) private var records: [ScanRecord]
     @State private var isShowingNewRecord = false
+    @State private var searchText = ""
+
+    private var filteredRecords: [ScanRecord] {
+        guard !searchText.isEmpty else { return records }
+        return records.filter {
+            $0.clientName.localizedCaseInsensitiveContains(searchText)
+                || $0.shellName.localizedCaseInsensitiveContains(searchText)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -17,7 +26,7 @@ struct RecordsView: View {
                     )
                 } else {
                     List {
-                        ForEach(records) { record in
+                        ForEach(filteredRecords) { record in
                             NavigationLink {
                                 ReportView(record: record)
                             } label: {
@@ -26,6 +35,7 @@ struct RecordsView: View {
                         }
                         .onDelete(perform: deleteRecords)
                     }
+                    .searchable(text: $searchText, prompt: "搜索客户或头壳")
                 }
             }
             .navigationTitle("记录")

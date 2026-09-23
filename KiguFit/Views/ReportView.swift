@@ -9,6 +9,8 @@ struct ReportView: View {
     @State private var pdfURL: URL?
     @State private var jsonURL: URL?
     @State private var isEditingMeasurements = false
+    @State private var isRenamingClient = false
+    @State private var newClientName = ""
 
     private var tapeEntries: [MeasurementKey: Double] {
         Dictionary(
@@ -54,8 +56,20 @@ struct ReportView: View {
         .toolbar {
             if !embedded {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("编辑") {
-                        isEditingMeasurements = true
+                    Menu {
+                        Button {
+                            isEditingMeasurements = true
+                        } label: {
+                            Label("编辑测量值", systemImage: "ruler")
+                        }
+                        Button {
+                            newClientName = record.clientName
+                            isRenamingClient = true
+                        } label: {
+                            Label("重命名客户", systemImage: "person.text.rectangle")
+                        }
+                    } label: {
+                        Text("编辑")
                     }
                 }
             }
@@ -64,6 +78,14 @@ struct ReportView: View {
                     Button("完成") { onDone() }
                 }
             }
+        }
+        .alert("重命名客户", isPresented: $isRenamingClient) {
+            TextField("客户代号", text: $newClientName)
+            Button("保存") {
+                record.clientName = newClientName.trimmingCharacters(in: .whitespacesAndNewlines)
+                generateExports()
+            }
+            Button("取消", role: .cancel) {}
         }
         .sheet(isPresented: $isEditingMeasurements) {
             NavigationStack {
