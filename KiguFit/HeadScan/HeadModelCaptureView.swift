@@ -50,7 +50,7 @@ struct HeadModelCaptureView: View {
             Section("扫描前准备") {
                 preparationRow("头发用浅色头套 / 泳帽压平", detail: "黑发、染深色、油亮发质会严重干扰 LiDAR；长发先盘起再戴帽")
                 preparationRow("必要时取下眼镜、耳饰", detail: "避免扫描时反光与遮挡")
-                preparationRow("光线均匀，避免逆光", detail: "哑光、中浅色表面重建效果最好")
+                preparationRow("光线要充足", detail: "摄影测量对环境光要求高：开顶灯 / 加补光灯；提示「环境光偏弱」时若不补光，模型容易出空洞")
                 preparationRow("扫描对象保持不动", detail: "扫真人时请他人持手机绕行，头部不要转动")
                 preparationRow("绕 2–3 圈效果更好", detail: "每完成一圈点「再绕一圈」补采；能翻面的物体可翻面扫")
             }
@@ -95,8 +95,8 @@ struct HeadModelCaptureView: View {
         if let session = model.session {
             ObjectCaptureView(session: session) {
                 VStack(spacing: 0) {
-                    banner
                     Spacer()
+                    statusPill
                     controls(session: session)
                 }
                 .padding()
@@ -129,19 +129,21 @@ struct HeadModelCaptureView: View {
         }
     }
 
-    private var banner: some View {
-        VStack(spacing: 6) {
+    private var statusPill: some View {
+        VStack(spacing: 5) {
             Text(stateText)
-                .font(.headline)
+                .font(.subheadline.weight(.semibold))
             if !model.feedbackMessages.isEmpty {
-                Text(model.feedbackMessages.joined(separator: " · "))
-                    .font(.callout)
+                Text(model.feedbackMessages.prefix(2).joined(separator: " · "))
+                    .font(.footnote)
                     .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .padding(.vertical, 9)
+        .background(.ultraThinMaterial, in: Capsule())
+        .padding(.bottom, 6)
     }
 
     private var stateText: String {
