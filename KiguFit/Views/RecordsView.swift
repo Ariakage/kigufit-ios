@@ -19,7 +19,7 @@ struct RecordsView: View {
                     List {
                         ForEach(records) { record in
                             NavigationLink {
-                                RecordOverviewView(record: record)
+                                ReportView(record: record)
                             } label: {
                                 RecordRow(record: record)
                             }
@@ -42,7 +42,7 @@ struct RecordsView: View {
                 }
             }
             .sheet(isPresented: $isShowingNewRecord) {
-                NewRecordPlaceholderView()
+                ScanFlowView()
             }
         }
     }
@@ -98,62 +98,6 @@ struct VerdictBadge: View {
         case .tight: return .orange
         case .loose: return .blue
         case .unfit: return .red
-        }
-    }
-}
-
-private struct RecordOverviewView: View {
-    let record: ScanRecord
-
-    var body: some View {
-        List {
-            Section("客户") {
-                LabeledContent("代号", value: record.clientName.isEmpty ? "未命名" : record.clientName)
-                LabeledContent("头壳", value: record.shellName)
-                LabeledContent("时间", value: record.createdAt.formatted(date: .numeric, time: .shortened))
-            }
-            if let verdict = record.verdict {
-                Section("结论") {
-                    HStack {
-                        VerdictBadge(level: verdict.level)
-                        Text(verdict.summary)
-                    }
-                }
-            }
-            Section("测量值") {
-                ForEach(record.measurements) { measurement in
-                    LabeledContent(measurement.key.displayName) {
-                        HStack(spacing: 6) {
-                            Text(String(format: "%.1f mm", measurement.valueMM))
-                            Text(measurement.source.displayName)
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                }
-            }
-        }
-        .navigationTitle("测量详情")
-    }
-}
-
-private struct NewRecordPlaceholderView: View {
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView(
-                "扫描向导开发中",
-                systemImage: "arkit",
-                description: Text("下一次提交将接入 TrueDepth 扫描与手动测量流程")
-            )
-            .navigationTitle("新建测量")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("关闭") { dismiss() }
-                }
-            }
         }
     }
 }
