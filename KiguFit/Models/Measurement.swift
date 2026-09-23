@@ -49,7 +49,7 @@ nonisolated enum MeasurementKey: String, Codable, CaseIterable, Hashable, Sendab
         case .chinWidth: return "下巴宽"
         case .eyeToChin: return "眼睛高度（瞳线-下巴）"
         case .chinToMouth: return "下巴高度（下巴-嘴缝）"
-        case .mouthWidth: return "嘴宽"
+        case .mouthWidth: return "嘴部区宽（嘴线水平）"
         case .noseDepth: return "鼻深"
         case .faceLength: return "脸长（发际线-下巴）"
         }
