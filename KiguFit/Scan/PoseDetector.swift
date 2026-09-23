@@ -21,7 +21,7 @@ nonisolated enum PoseDetector {
         static let zero = RelativeAngles(yaw: 0, pitch: 0)
     }
 
-    static let lateralPolarity: Float = 1
+    static let lateralPolarity: Float = -1
 
     static func forwardSign(vertices: [SIMD3<Float>]) -> Float {
         guard !vertices.isEmpty else { return 1 }
