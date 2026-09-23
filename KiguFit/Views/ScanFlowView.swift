@@ -179,6 +179,11 @@ struct ScanFlowView: View {
                 Text("将手机置于面前 30–50cm，正对屏幕；不支持 TrueDepth 的设备可跳过扫描、仅用软尺数据。")
             }
         }
+        .onAppear {
+            if model.selectedShell == nil, let first = shells.first {
+                model.selectedShell = first
+            }
+        }
     }
 }
 

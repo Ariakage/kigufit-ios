@@ -21,6 +21,7 @@ enum ReportPDFRenderer {
             layout.footer("KiguFit · \(dateText)")
             drawHeader(&layout, record: record, dateText: dateText)
             drawVerdict(&layout, verdict: verdict)
+            drawKeySummary(&layout, measurements: measurements, hasVerdict: verdict != nil)
             drawChecks(&layout, verdict: verdict)
             drawSuggestions(&layout, verdict: verdict)
             drawAI(&layout, narrative: record.aiNarrative)
@@ -100,6 +101,40 @@ enum ReportPDFRenderer {
             alignment: .left
         )
         layout.space(boxHeight + 16)
+    }
+
+    private static func drawKeySummary(_ layout: inout Layout, measurements: [MeasurementValue], hasVerdict: Bool) {
+        let keys: [MeasurementKey] = [
+            .headCircumference, .headHeight, .headWidth, .headDepth,
+            .interpupillaryDistance, .bizygomaticWidth
+        ]
+        let values = keys.compactMap { key in measurements.first { $0.key == key } }
+        guard !values.isEmpty else { return }
+
+        layout.draw(
+            hasVerdict ? "关键测量" : "测量摘要（未选择头壳，未生成适配结论）",
+            font: .systemFont(ofSize: 14, weight: .semibold),
+            spacing: 8
+        )
+        for value in values {
+            layout.ensure(18)
+            draw(
+                value.key.displayName,
+                in: CGRect(x: margin, y: layout.y, width: 300, height: 14),
+                font: .systemFont(ofSize: 10),
+                color: .label,
+                alignment: .left
+            )
+            draw(
+                String(format: "%.1f mm · %@", value.valueMM, value.source.displayName),
+                in: CGRect(x: margin + 300, y: layout.y, width: contentWidth - 300, height: 14),
+                font: .systemFont(ofSize: 10),
+                color: .darkGray,
+                alignment: .right
+            )
+            layout.y += 16
+        }
+        layout.space(10)
     }
 
     private static func drawChecks(_ layout: inout Layout, verdict: FitVerdict?) {

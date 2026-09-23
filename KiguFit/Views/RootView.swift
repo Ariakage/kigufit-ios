@@ -1,6 +1,10 @@
 import SwiftUI
+import SwiftData
 
 struct RootView: View {
+    @Environment(\.modelContext) private var modelContext
+    @Query private var shells: [ShellProfile]
+
     var body: some View {
         TabView {
             RecordsView()
@@ -12,9 +16,15 @@ struct RootView: View {
             SettingsView()
                 .tabItem { Label("设置", systemImage: "gearshape") }
         }
+        .task {
+            if shells.isEmpty {
+                modelContext.insert(ShellProfile(payload: SampleShell.payload))
+            }
+        }
     }
 }
 
 #Preview {
     RootView()
+        .modelContainer(for: [ShellProfile.self, ScanRecord.self], inMemory: true)
 }
