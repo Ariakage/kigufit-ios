@@ -124,27 +124,14 @@ final class HeadModelCaptureModel {
 
         Task { [weak self] in
             do {
-                let photogrammetry = try PhotogrammetrySession(input: imagesDirectory)
-                let request = PhotogrammetrySession.Request.modelFile(url: outputURL, detail: .reduced)
-                try photogrammetry.process(requests: [request])
-
-                for try await output in photogrammetry.outputs {
-                    switch output {
-                    case let .requestProgress(_, fractionComplete):
-                        self?.phase = .reconstructing(fractionComplete)
-                    case .processingComplete:
-                        self?.completeReconstruction(tempURL: outputURL)
-                        return
-                    case .processingCancelled:
-                        self?.phase = .failed("重建已取消")
-                        return
-                    case let .requestError(_, error):
-                        self?.phase = .failed(error.localizedDescription)
-                        return
-                    default:
-                        break
-                    }
+                try await HeadModelReconstructor.reconstruct(
+                    imagesDirectory: imagesDirectory,
+                    outputURL: outputURL,
+                    sampleOrdering: .sequential
+                ) { fraction in
+                    self?.phase = .reconstructing(fraction)
                 }
+                self?.completeReconstruction(tempURL: outputURL)
             } catch {
                 self?.phase = .failed(error.localizedDescription)
             }

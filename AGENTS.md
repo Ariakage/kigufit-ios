@@ -7,7 +7,7 @@
 
 - 纯 SwiftUI（不做 Flutter），最低 iOS 17，仅竖屏
 - 前置 TrueDepth + ARKit `ARFaceTrackingConfiguration`（无预览 ARSession；多姿势引导采集：正视/左转/右转/抬头/低头，扫描前有准备清单：去眼镜/刘海/遮挡物）
-- 后置 LiDAR 头模扫描（`ObjectCaptureSession` + 机内 `PhotogrammetrySession` 重建，输出 USDZ/OBJ；仅 Pro 机型）
+- 后置 LiDAR 头模扫描（`ObjectCaptureSession` + 机内 `PhotogrammetrySession` 重建，输出 USDZ/OBJ；仅 Pro 机型）；另有「照片重建」模式（相册照片 → 机内重建，支持转椅自扫流程）
 - SwiftData 持久化；`UIGraphicsPDFRenderer` 生成 PDF
 - 自签部署：免费 Apple ID（7 天有效期，AltStore/SideStore 续签），真机调试必需
 - 权限：`NSCameraUsageDescription`（已配置）；无 TrueDepth 设备降级为纯手动模式

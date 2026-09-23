@@ -5,6 +5,7 @@ struct HeadModelsView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \HeadModelScan.createdAt, order: .reverse) private var models: [HeadModelScan]
     @State private var isShowingCapture = false
+    @State private var isShowingPhotoReconstruction = false
 
     var body: some View {
         NavigationStack {
@@ -31,16 +32,30 @@ struct HeadModelsView: View {
             .navigationTitle("头模")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        isShowingCapture = true
+                    Menu {
+                        Button {
+                            isShowingCapture = true
+                        } label: {
+                            Label("LiDAR 实时扫描", systemImage: "lidar.scanner")
+                        }
+                        Button {
+                            isShowingPhotoReconstruction = true
+                        } label: {
+                            Label("照片重建（自扫）", systemImage: "photo.stack")
+                        }
                     } label: {
-                        Label("扫描头模", systemImage: "plus")
+                        Label("添加", systemImage: "plus")
                     }
                 }
             }
             .sheet(isPresented: $isShowingCapture) {
                 NavigationStack {
                     HeadModelCaptureView()
+                }
+            }
+            .sheet(isPresented: $isShowingPhotoReconstruction) {
+                NavigationStack {
+                    PhotoReconstructionView()
                 }
             }
         }
