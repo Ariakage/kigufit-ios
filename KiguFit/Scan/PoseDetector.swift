@@ -36,6 +36,6 @@ nonisolated enum PoseDetector {
         return Pose(yaw: yaw, pitch: pitch)
     }
 
-    static let yawPolarity: Double = 1
-    static let pitchPolarity: Double = 1
+    static let yawPolarity: Double = -1
+    static let pitchPolarity: Double = -1
 }
