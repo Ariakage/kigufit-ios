@@ -6,6 +6,16 @@ enum ReportPDFRenderer {
     static let margin: CGFloat = 40
     static let contentWidth: CGFloat = 595 - 80
 
+    private static let ink = UIColor.black
+    private static let inkSecondary = UIColor(white: 0.32, alpha: 1)
+    private static let inkTertiary = UIColor(white: 0.55, alpha: 1)
+    private static let hairline = UIColor(white: 0.85, alpha: 1)
+
+    private static let levelGreen = UIColor(red: 0.11, green: 0.60, blue: 0.26, alpha: 1)
+    private static let levelOrange = UIColor(red: 0.93, green: 0.53, blue: 0.08, alpha: 1)
+    private static let levelBlue = UIColor(red: 0.05, green: 0.42, blue: 0.88, alpha: 1)
+    private static let levelRed = UIColor(red: 0.83, green: 0.18, blue: 0.18, alpha: 1)
+
     static func renderPDF(record: ScanRecord) -> Data {
         let renderer = UIGraphicsPDFRenderer(bounds: CGRect(origin: .zero, size: pageSize))
         let measurements = record.measurements
@@ -39,22 +49,24 @@ enum ReportPDFRenderer {
         var y: CGFloat = 40
 
         mutating func beginPage() {
+            UIColor.white.setFill()
+            context.cgContext.fill(CGRect(origin: .zero, size: ReportPDFRenderer.pageSize))
             y = 40
         }
 
         mutating func ensure(_ height: CGFloat) {
             if y + height > 780 {
                 context.beginPage()
-                y = 40
+                beginPage()
             }
         }
 
         mutating func footer(_ text: String) {
             ReportPDFRenderer.draw(
                 text,
-                in: CGRect(x: 40, y: 800, width: contentWidth, height: 14),
+                in: CGRect(x: ReportPDFRenderer.margin, y: 802, width: ReportPDFRenderer.contentWidth, height: 14),
                 font: .systemFont(ofSize: 9),
-                color: .gray,
+                color: ReportPDFRenderer.inkTertiary,
                 alignment: .center
             )
         }
@@ -62,45 +74,75 @@ enum ReportPDFRenderer {
         mutating func space(_ amount: CGFloat = 10) {
             y += amount
         }
+
+        mutating func draw(_ text: String, font: UIFont, color: UIColor = .black, alignment: NSTextAlignment = .natural, spacing: CGFloat = 6) {
+            let height = ReportPDFRenderer.textHeight(text, width: ReportPDFRenderer.contentWidth, font: font)
+            ensure(height + spacing)
+            ReportPDFRenderer.draw(
+                text,
+                in: CGRect(x: ReportPDFRenderer.margin, y: y, width: ReportPDFRenderer.contentWidth, height: height),
+                font: font,
+                color: color,
+                alignment: alignment
+            )
+            y += height + spacing
+        }
+
+        mutating func separator() {
+            ensure(12)
+            let path = UIBezierPath()
+            path.move(to: CGPoint(x: ReportPDFRenderer.margin, y: y))
+            path.addLine(to: CGPoint(x: ReportPDFRenderer.pageSize.width - ReportPDFRenderer.margin, y: y))
+            ReportPDFRenderer.hairline.setStroke()
+            path.lineWidth = 0.5
+            path.stroke()
+            y += 1
+        }
     }
 
     private static func drawHeader(_ layout: inout Layout, record: ScanRecord, dateText: String) {
         layout.draw("KiguFit 测量报告", font: .boldSystemFont(ofSize: 22), spacing: 4)
         let subtitle = "客户：\(record.clientName.isEmpty ? "未命名" : record.clientName)    头壳：\(record.shellName)    日期：\(dateText)"
-        layout.draw(subtitle, font: .systemFont(ofSize: 11), color: .darkGray, spacing: 10)
+        layout.draw(subtitle, font: .systemFont(ofSize: 11), color: inkSecondary, spacing: 8)
         layout.separator()
-        layout.space(8)
+        layout.space(10)
     }
 
     private static func drawVerdict(_ layout: inout Layout, verdict: FitVerdict?) {
         guard let verdict else { return }
         let tint = color(for: verdict.level)
-        let boxHeight: CGFloat = 64
-        layout.ensure(boxHeight + 16)
+
+        let levelFont = UIFont.boldSystemFont(ofSize: 18)
+        let summaryFont = UIFont.systemFont(ofSize: 11)
+        let summaryWidth = contentWidth - 28
+        let summaryHeight = textHeight(verdict.summary, width: summaryWidth, font: summaryFont)
+        let boxHeight = 14 + 24 + 6 + summaryHeight + 14
+
+        layout.ensure(boxHeight + 18)
 
         let rect = CGRect(x: margin, y: layout.y, width: contentWidth, height: boxHeight)
         let path = UIBezierPath(roundedRect: rect, cornerRadius: 10)
-        tint.withAlphaComponent(0.12).setFill()
+        tint.withAlphaComponent(0.10).setFill()
         path.fill()
-        tint.withAlphaComponent(0.5).setStroke()
+        tint.withAlphaComponent(0.45).setStroke()
         path.lineWidth = 1
         path.stroke()
 
         draw(
             verdict.level.displayName,
-            in: CGRect(x: rect.minX + 14, y: rect.minY + 10, width: 120, height: 24),
-            font: .boldSystemFont(ofSize: 18),
+            in: CGRect(x: rect.minX + 14, y: rect.minY + 12, width: 160, height: 26),
+            font: levelFont,
             color: tint,
             alignment: .left
         )
         draw(
             verdict.summary,
-            in: CGRect(x: rect.minX + 14, y: rect.minY + 34, width: rect.width - 28, height: 22),
-            font: .systemFont(ofSize: 11),
-            color: .darkGray,
+            in: CGRect(x: rect.minX + 14, y: rect.minY + 44, width: summaryWidth, height: summaryHeight),
+            font: summaryFont,
+            color: inkSecondary,
             alignment: .left
         )
-        layout.space(boxHeight + 16)
+        layout.space(boxHeight + 18)
     }
 
     private static func drawKeySummary(_ layout: inout Layout, measurements: [MeasurementValue], hasVerdict: Bool) {
@@ -116,72 +158,86 @@ enum ReportPDFRenderer {
             font: .systemFont(ofSize: 14, weight: .semibold),
             spacing: 8
         )
+        let rowFont = UIFont.systemFont(ofSize: 10.5)
         for value in values {
-            layout.ensure(18)
+            layout.ensure(19)
             draw(
                 value.key.displayName,
-                in: CGRect(x: margin, y: layout.y, width: 300, height: 14),
-                font: .systemFont(ofSize: 10),
-                color: .label,
+                in: CGRect(x: margin, y: layout.y, width: 300, height: 15),
+                font: rowFont,
+                color: ink,
                 alignment: .left
             )
             draw(
                 String(format: "%.1f mm · %@", value.valueMM, value.source.displayName),
-                in: CGRect(x: margin + 300, y: layout.y, width: contentWidth - 300, height: 14),
-                font: .systemFont(ofSize: 10),
-                color: .darkGray,
+                in: CGRect(x: margin + 300, y: layout.y, width: contentWidth - 300, height: 15),
+                font: rowFont,
+                color: inkSecondary,
                 alignment: .right
             )
-            layout.y += 16
+            layout.y += 17
         }
-        layout.space(10)
+        layout.space(12)
     }
 
     private static func drawChecks(_ layout: inout Layout, verdict: FitVerdict?) {
         guard let verdict, !verdict.checks.isEmpty else { return }
         layout.draw("对照明细", font: .systemFont(ofSize: 14, weight: .semibold), spacing: 8)
+
+        let titleFont = UIFont.systemFont(ofSize: 12, weight: .semibold)
+        let detailFont = UIFont.systemFont(ofSize: 10)
+        let statusFont = UIFont.boldSystemFont(ofSize: 11)
+
         for check in verdict.checks {
-            let detailHeight = textHeight(check.detail, width: contentWidth - 90, font: .systemFont(ofSize: 10))
-            layout.ensure(detailHeight + 26)
-            let titleRect = CGRect(x: margin, y: layout.y, width: contentWidth - 80, height: 16)
-            draw(check.title, in: titleRect, font: .systemFont(ofSize: 12, weight: .semibold), color: .label, alignment: .left)
+            let detailHeight = textHeight(check.detail, width: contentWidth - 100, font: detailFont)
+            layout.ensure(detailHeight + 30)
+
+            draw(
+                check.title,
+                in: CGRect(x: margin, y: layout.y, width: contentWidth - 90, height: 16),
+                font: titleFont,
+                color: ink,
+                alignment: .left
+            )
             draw(
                 check.status.displayName,
                 in: CGRect(x: margin, y: layout.y, width: contentWidth, height: 16),
-                font: .boldSystemFont(ofSize: 11),
+                font: statusFont,
                 color: color(for: check.status),
                 alignment: .right
             )
-            layout.y += 17
+            layout.y += 18
+
             draw(
                 check.detail,
-                in: CGRect(x: margin, y: layout.y, width: contentWidth - 90, height: detailHeight),
-                font: .systemFont(ofSize: 10),
-                color: .gray,
+                in: CGRect(x: margin, y: layout.y, width: contentWidth - 100, height: detailHeight),
+                font: detailFont,
+                color: inkTertiary,
                 alignment: .left
             )
             if let marginValue = check.marginMM {
                 draw(
                     String(format: "余量 %.1f mm", marginValue),
-                    in: CGRect(x: margin, y: layout.y, width: contentWidth, height: detailHeight),
-                    font: .systemFont(ofSize: 10),
-                    color: .darkGray,
+                    in: CGRect(x: margin + contentWidth - 100, y: layout.y, width: 100, height: detailHeight),
+                    font: detailFont,
+                    color: inkSecondary,
                     alignment: .right
                 )
             }
-            layout.y += detailHeight + 4
+            layout.y += detailHeight + 6
             layout.separator()
         }
-        layout.space(10)
+        layout.space(12)
     }
 
     private static func drawSuggestions(_ layout: inout Layout, verdict: FitVerdict?) {
         guard let verdict, !verdict.suggestions.isEmpty else { return }
         layout.draw("建议", font: .systemFont(ofSize: 14, weight: .semibold), spacing: 6)
         for suggestion in verdict.suggestions {
-            let height = textHeight("• " + suggestion.detail, width: contentWidth, font: .systemFont(ofSize: 11))
-            layout.ensure(height + 4)
-            layout.draw("• " + suggestion.detail, font: .systemFont(ofSize: 11), spacing: 4)
+            let line = "• " + suggestion.detail
+            let height = textHeight(line, width: contentWidth, font: .systemFont(ofSize: 11))
+            layout.ensure(height + 6)
+            layout.draw(line, font: .systemFont(ofSize: 11), spacing: 5)
         }
         layout.space(6)
     }
@@ -190,33 +246,32 @@ enum ReportPDFRenderer {
         guard let narrative, !narrative.isEmpty else { return }
         layout.draw("AI 解读", font: .systemFont(ofSize: 14, weight: .semibold), spacing: 6)
         let height = textHeight(narrative, width: contentWidth, font: .systemFont(ofSize: 11))
-        layout.ensure(height + 4)
-        layout.draw(narrative, font: .systemFont(ofSize: 11), spacing: 6)
+        layout.ensure(height + 6)
+        layout.draw(narrative, font: .systemFont(ofSize: 11), spacing: 8)
     }
 
     private static func drawMeasurements(_ layout: inout Layout, measurements: [MeasurementValue]) {
         layout.draw("测量数据", font: .boldSystemFont(ofSize: 16), spacing: 10)
 
-        let columns: [(String, CGFloat, NSTextAlignment)] = [
-            ("项目", margin, .left),
-            ("数值 (mm)", margin + 250, .right),
-            ("来源", margin + 330, .left),
-            ("置信度", margin + 420, .right)
-        ]
+        let rowFont = UIFont.systemFont(ofSize: 10)
+        let itemX = margin
+        let itemWidth: CGFloat = 230
+        let valueX = itemX + itemWidth + 10
+        let valueWidth: CGFloat = 80
+        let sourceX = valueX + valueWidth + 12
+        let sourceWidth: CGFloat = 60
+        let confidenceX = sourceX + sourceWidth + 10
+        let confidenceWidth = pageSize.width - margin - confidenceX
+
         layout.ensure(18)
-        for (title, x, alignment) in columns {
-            draw(
-                title,
-                in: CGRect(x: x, y: layout.y, width: 90, height: 14),
-                font: .boldSystemFont(ofSize: 10),
-                color: .darkGray,
-                alignment: alignment
-            )
-        }
+        draw("项目", in: CGRect(x: itemX, y: layout.y, width: itemWidth, height: 14), font: .boldSystemFont(ofSize: 10), color: inkSecondary, alignment: .left)
+        draw("数值 (mm)", in: CGRect(x: valueX, y: layout.y, width: valueWidth, height: 14), font: .boldSystemFont(ofSize: 10), color: inkSecondary, alignment: .right)
+        draw("来源", in: CGRect(x: sourceX, y: layout.y, width: sourceWidth, height: 14), font: .boldSystemFont(ofSize: 10), color: inkSecondary, alignment: .left)
+        draw("置信度", in: CGRect(x: confidenceX, y: layout.y, width: confidenceWidth, height: 14), font: .boldSystemFont(ofSize: 10), color: inkSecondary, alignment: .right)
         layout.y += 16
         layout.separator()
 
-        let ordered = [MeasurementSource.scan, .tape, .estimated]
+        let ordered: [MeasurementSource] = [.scan, .tape, .estimated]
         let sorted = measurements.sorted { lhs, rhs in
             let lhsIndex = ordered.firstIndex(of: lhs.source) ?? 3
             let rhsIndex = ordered.firstIndex(of: rhs.source) ?? 3
@@ -225,38 +280,14 @@ enum ReportPDFRenderer {
         }
 
         for measurement in sorted {
-            layout.ensure(18)
-            draw(
-                measurement.key.displayName,
-                in: CGRect(x: margin, y: layout.y, width: 240, height: 14),
-                font: .systemFont(ofSize: 10),
-                color: .label,
-                alignment: .left
-            )
-            draw(
-                String(format: "%.1f", measurement.valueMM),
-                in: CGRect(x: margin + 250, y: layout.y, width: 80, height: 14),
-                font: .systemFont(ofSize: 10),
-                color: .label,
-                alignment: .right
-            )
-            draw(
-                measurement.source.displayName,
-                in: CGRect(x: margin + 330, y: layout.y, width: 60, height: 14),
-                font: .systemFont(ofSize: 10),
-                color: .darkGray,
-                alignment: .left
-            )
-            draw(
-                String(format: "%.2f", measurement.confidence),
-                in: CGRect(x: margin + 400, y: layout.y, width: 115, height: 14),
-                font: .systemFont(ofSize: 10),
-                color: .darkGray,
-                alignment: .right
-            )
-            layout.y += 16
+            layout.ensure(19)
+            draw(measurement.key.displayName, in: CGRect(x: itemX, y: layout.y, width: itemWidth, height: 15), font: rowFont, color: ink, alignment: .left)
+            draw(String(format: "%.1f", measurement.valueMM), in: CGRect(x: valueX, y: layout.y, width: valueWidth, height: 15), font: rowFont, color: ink, alignment: .right)
+            draw(measurement.source.displayName, in: CGRect(x: sourceX, y: layout.y, width: sourceWidth, height: 15), font: rowFont, color: inkSecondary, alignment: .left)
+            draw(String(format: "%.2f", measurement.confidence), in: CGRect(x: confidenceX, y: layout.y, width: confidenceWidth, height: 15), font: rowFont, color: inkSecondary, alignment: .right)
+            layout.y += 17
         }
-        layout.space(14)
+        layout.space(16)
     }
 
     private static func drawShellInfo(_ layout: inout Layout, shell: ShellProfilePayload?, shellName: String) {
@@ -286,11 +317,11 @@ enum ReportPDFRenderer {
             layout.draw(String(format: "建议头围：%.0f–%.0f mm", range[0], range[1]), font: .systemFont(ofSize: 11), spacing: 4)
         }
         if let notes = shell.notes {
-            layout.draw("备注：\(notes)", font: .systemFont(ofSize: 10), color: .gray, spacing: 4)
+            layout.draw("备注：\(notes)", font: .systemFont(ofSize: 10), color: inkTertiary, spacing: 4)
         }
     }
 
-    static func draw(_ text: String, in rect: CGRect, font: UIFont, color: UIColor, alignment: NSTextAlignment) {
+    private static func draw(_ text: String, in rect: CGRect, font: UIFont, color: UIColor, alignment: NSTextAlignment) {
         let style = NSMutableParagraphStyle()
         style.alignment = alignment
         style.lineBreakMode = .byWordWrapping
@@ -302,7 +333,7 @@ enum ReportPDFRenderer {
         )
     }
 
-    static func textHeight(_ text: String, width: CGFloat, font: UIFont) -> CGFloat {
+    private static func textHeight(_ text: String, width: CGFloat, font: UIFont) -> CGFloat {
         ceil((text as NSString).boundingRect(
             with: CGSize(width: width, height: .greatestFiniteMagnitude),
             options: [.usesLineFragmentOrigin, .usesFontLeading],
@@ -313,44 +344,18 @@ enum ReportPDFRenderer {
 
     private static func color(for level: FitVerdict.Level) -> UIColor {
         switch level {
-        case .good: return .systemGreen
-        case .tight: return .systemOrange
-        case .loose: return .systemBlue
-        case .unfit: return .systemRed
+        case .good: return levelGreen
+        case .tight: return levelOrange
+        case .loose: return levelBlue
+        case .unfit: return levelRed
         }
     }
 
     private static func color(for status: FitVerdict.Check.Status) -> UIColor {
         switch status {
-        case .ok: return .systemGreen
-        case .warn: return .systemOrange
-        case .fail: return .systemRed
+        case .ok: return levelGreen
+        case .warn: return levelOrange
+        case .fail: return levelRed
         }
-    }
-}
-
-extension ReportPDFRenderer.Layout {
-    mutating func draw(_ text: String, font: UIFont, color: UIColor = .label, alignment: NSTextAlignment = .natural, spacing: CGFloat = 6) {
-        let height = ReportPDFRenderer.textHeight(text, width: ReportPDFRenderer.contentWidth, font: font)
-        ensure(height + spacing)
-        ReportPDFRenderer.draw(
-            text,
-            in: CGRect(x: ReportPDFRenderer.margin, y: y, width: ReportPDFRenderer.contentWidth, height: height),
-            font: font,
-            color: color,
-            alignment: alignment
-        )
-        y += height + spacing
-    }
-
-    mutating func separator() {
-        ensure(12)
-        let path = UIBezierPath()
-        path.move(to: CGPoint(x: ReportPDFRenderer.margin, y: y))
-        path.addLine(to: CGPoint(x: ReportPDFRenderer.pageSize.width - ReportPDFRenderer.margin, y: y))
-        UIColor.systemGray4.setStroke()
-        path.lineWidth = 0.5
-        path.stroke()
-        y += 1
     }
 }
