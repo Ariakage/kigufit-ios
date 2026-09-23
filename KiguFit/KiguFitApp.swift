@@ -6,7 +6,8 @@ struct KiguFitApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             ShellProfile.self,
-            ScanRecord.self
+            ScanRecord.self,
+            HeadModelScan.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

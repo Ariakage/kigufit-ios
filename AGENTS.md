@@ -7,6 +7,7 @@
 
 - 纯 SwiftUI（不做 Flutter），最低 iOS 17，仅竖屏
 - 前置 TrueDepth + ARKit `ARFaceTrackingConfiguration`（无预览 ARSession；多姿势引导采集：正视/左转/右转/抬头/低头，扫描前有准备清单：去眼镜/刘海/遮挡物）
+- 后置 LiDAR 头模扫描（`ObjectCaptureSession` + 机内 `PhotogrammetrySession` 重建，输出 USDZ/OBJ；仅 Pro 机型）
 - SwiftData 持久化；`UIGraphicsPDFRenderer` 生成 PDF
 - 自签部署：免费 Apple ID（7 天有效期，AltStore/SideStore 续签），真机调试必需
 - 权限：`NSCameraUsageDescription`（已配置）；无 TrueDepth 设备降级为纯手动模式
@@ -14,7 +15,7 @@
 
 ## 路线图
 
-- **P1（当前）**：扫描核心 + 软尺录入（头围/头高必填）+ 记录列表 + JSON/PDF 导出（三方通用，含 AI 段落预留位）
+- **P1（当前）**：扫描核心 + 软尺录入（头围/头高必填）+ 记录列表 + JSON/PDF 导出（三方通用，含 AI 段落预留位）+ LiDAR 头模扫描（USDZ/OBJ 导出）
 - **P2**：剖面可视化、头壳档案管理/导入 UI、打磨
 - **P3**：本地 OBJ 分析引擎 + BYOK LLM 流水线（几何摘要上云，原始 OBJ 不出本机）
 - **P4**：多步对话 Agent（tool-calling、跨记录分析）
@@ -107,13 +108,15 @@
 ```
 KiguFit/
   App/            KiguFitApp.swift
-  Models/         Measurement.swift, ShellProfile.swift, ScanRecord.swift, SampleShell.swift
-  Scan/           FaceScanSession.swift, ScanGuidanceView.swift
+  Models/         Measurement.swift, ShellProfile.swift, ScanRecord.swift, SampleShell.swift, HeadModelScan.swift
+  Scan/           FaceScanSession.swift, ScanPose.swift, PoseDetector.swift, FaceMeshCodec.swift
+  HeadScan/       HeadModelCaptureModel.swift, HeadModelCaptureView.swift
   Measurement/    MeasurementEngine.swift, HeadEstimator.swift
-  Fit/            FitEngine.swift
+  Fit/            FitEngine.swift, FitVerdict.swift
   Report/         ReportPDFRenderer.swift, ExportService.swift
   Views/          RootView.swift, RecordsView.swift, ShellsView.swift, SettingsView.swift,
-                  ScanFlowView.swift, ManualEntryView.swift, ScanSummaryView.swift, ReportView.swift
+                  ScanFlowView.swift, ScanGuidanceView.swift, ManualEntryView.swift, ScanSummaryView.swift,
+                  ReportView.swift, HeadModelsView.swift
 ```
 
 （工程使用 Xcode FileSystemSynchronizedRootGroup：新文件放入目录即自动加入构建，无需改 pbxproj）
