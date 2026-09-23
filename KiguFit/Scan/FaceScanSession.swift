@@ -33,6 +33,8 @@ final class FaceScanSession: NSObject, ARSessionDelegate {
     private var sumVertices: [SIMD3<Float>] = []
     private var sumLeft: SIMD3<Float> = .zero
     private var sumRight: SIMD3<Float> = .zero
+    private var baselineSamples: [PoseDetector.Orientation] = []
+    private var baseline: PoseDetector.Baseline?
 
     var totalTargetFrames: Int {
         poses.reduce(0) { $0 + $1.targetFrames }
@@ -59,6 +61,8 @@ final class FaceScanSession: NSObject, ARSessionDelegate {
         sumVertices = []
         sumLeft = .zero
         sumRight = .zero
+        baselineSamples = []
+        baseline = nil
         lastCollectedAt = 0
         result = nil
         liveYaw = 0
@@ -93,6 +97,8 @@ final class FaceScanSession: NSObject, ARSessionDelegate {
         session.pause()
         frames = []
         sumVertices = []
+        baselineSamples = []
+        baseline = nil
         result = nil
         state = .idle
     }
@@ -113,11 +119,6 @@ final class FaceScanSession: NSObject, ARSessionDelegate {
 
         let vertices = face.geometry.vertices
         let sign = PoseDetector.forwardSign(vertices: vertices)
-        let pose = PoseDetector.pose(
-            faceTransform: face.transform,
-            cameraTransform: frame.camera.transform,
-            forwardSign: sign
-        )
         let left = SIMD3<Float>(
             face.leftEyeTransform.columns.3.x,
             face.leftEyeTransform.columns.3.y,
@@ -127,6 +128,12 @@ final class FaceScanSession: NSObject, ARSessionDelegate {
             face.rightEyeTransform.columns.3.x,
             face.rightEyeTransform.columns.3.y,
             face.rightEyeTransform.columns.3.z
+        )
+        let orientation = PoseDetector.orientation(
+            faceTransform: face.transform,
+            leftEyeLocal: left,
+            rightEyeLocal: right,
+            forwardSign: sign
         )
         let transform = Self.flatten(face.transform)
         let timestamp = frame.timestamp
@@ -138,8 +145,7 @@ final class FaceScanSession: NSObject, ARSessionDelegate {
                 right: right,
                 transform: transform,
                 timestamp: timestamp,
-                yaw: pose.yaw,
-                pitch: pose.pitch
+                orientation: orientation
             )
         }
     }
@@ -159,8 +165,7 @@ final class FaceScanSession: NSObject, ARSessionDelegate {
         right: SIMD3<Float>,
         transform: [Float],
         timestamp: TimeInterval,
-        yaw: Double,
-        pitch: Double
+        orientation: PoseDetector.Orientation
     ) {
         switch state {
         case .running, .collecting:
@@ -169,14 +174,16 @@ final class FaceScanSession: NSObject, ARSessionDelegate {
             return
         }
 
-        liveYaw = yaw
-        livePitch = pitch
+        let angles = baseline.map { PoseDetector.relativeAngles(orientation, baseline: $0) } ?? .zero
+        liveYaw = angles.yaw
+        livePitch = angles.pitch
 
         guard poseIndex < poses.count else { return }
         let pose = poses[poseIndex]
-        let satisfied = pose.matches(yaw: yaw, pitch: pitch)
+        let establishingBaseline = pose == .front && baseline == nil
+        let satisfied = establishingBaseline || pose.matches(yaw: angles.yaw, pitch: angles.pitch)
         isPoseSatisfied = satisfied
-        feedback = pose.feedback(yaw: yaw, pitch: pitch)
+        feedback = establishingBaseline ? "保持正视，正在建立基准…" : pose.feedback(yaw: angles.yaw, pitch: angles.pitch)
 
         guard satisfied else { return }
         guard timestamp - lastCollectedAt >= minimumFrameInterval else { return }
@@ -188,10 +195,17 @@ final class FaceScanSession: NSObject, ARSessionDelegate {
             rightEye: right,
             faceTransform: transform,
             timestamp: timestamp,
-            yaw: Float(yaw),
-            pitch: Float(pitch)
+            yaw: Float(angles.yaw),
+            pitch: Float(angles.pitch)
         )
         frames.append(faceFrame)
+
+        if pose == .front && baseline == nil {
+            baselineSamples.append(orientation)
+            if let established = PoseDetector.makeBaseline(from: baselineSamples) {
+                baseline = established
+            }
+        }
 
         if sumVertices.isEmpty {
             sumVertices = [SIMD3<Float>](repeating: .zero, count: vertices.count)
