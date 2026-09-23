@@ -7,6 +7,7 @@ struct HeadModelCaptureView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var model = HeadModelCaptureModel()
     @State private var captureState: ObjectCaptureSession.CaptureState = .initializing
+    @State private var isPrepared = false
 
     var body: some View {
         Group {
@@ -14,7 +15,11 @@ struct HeadModelCaptureView: View {
             case .unsupported:
                 unsupportedView
             case .preparing, .capturing:
-                captureView
+                if isPrepared {
+                    captureView
+                } else {
+                    preparationView
+                }
             case let .reconstructing(progress):
                 reconstructingView(progress: progress)
             case .done:
@@ -37,6 +42,43 @@ struct HeadModelCaptureView: View {
         }
         .task {
             model.configure(modelContext: modelContext)
+        }
+    }
+
+    private var preparationView: some View {
+        List {
+            Section("扫描前准备") {
+                preparationRow("头发用浅色头套 / 泳帽压平", detail: "黑发、染深色、油亮发质会严重干扰 LiDAR；长发先盘起再戴帽")
+                preparationRow("必要时取下眼镜、耳饰", detail: "避免扫描时反光与遮挡")
+                preparationRow("光线均匀，避免逆光", detail: "哑光、中浅色表面重建效果最好")
+                preparationRow("扫描对象保持不动", detail: "扫真人时请他人持手机绕行，头部不要转动")
+                preparationRow("绕 2–3 圈效果更好", detail: "每完成一圈点「再绕一圈」补采；能翻面的物体可翻面扫")
+            }
+            Section("为什么") {
+                Text("头壳佩戴时头发是压平状态（还要垫海绵），所以扫描也应在压发状态进行，尺寸才对应真实佩戴。")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Section {
+                Button {
+                    isPrepared = true
+                } label: {
+                    Label("准备就绪，开始扫描", systemImage: "lidar.scanner")
+                }
+            }
+        }
+    }
+
+    private func preparationRow(_ title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "checkmark.circle")
+                .foregroundStyle(.blue)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -131,9 +173,16 @@ struct HeadModelCaptureView: View {
             case .capturing:
                 if model.userCompletedScanPass {
                     Button {
+                        model.beginAnotherPass()
+                    } label: {
+                        Label("再绕一圈", systemImage: "arrow.triangle.2.circlepath")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    Button {
                         model.continueAfterFlip()
                     } label: {
-                        Label("已翻面，继续扫描", systemImage: "arrow.triangle.2.circlepath")
+                        Label("已翻面，继续扫描", systemImage: "arrow.uturn.down")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.bordered)

@@ -66,6 +66,11 @@ final class HeadModelCaptureModel {
         userCompletedScanPass = false
     }
 
+    func beginAnotherPass() {
+        session?.beginNewScanPass()
+        userCompletedScanPass = false
+    }
+
     func finishCapture() {
         guard let session else { return }
         shotCount = session.numberOfShotsTaken
