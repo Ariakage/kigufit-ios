@@ -31,8 +31,11 @@ nonisolated enum PoseDetector {
         )
         let forwardLocal = SIMD3<Float>(0, 0, forwardSign)
         let forwardCamera = rotation * forwardLocal
-        let yaw = atan2(Double(forwardCamera.x), Double(-forwardCamera.z)) * 180 / .pi
-        let pitch = atan2(Double(forwardCamera.y), Double(-forwardCamera.z)) * 180 / .pi
+        let yaw = atan2(Double(forwardCamera.x), Double(forwardCamera.z)) * 180 / .pi * yawPolarity
+        let pitch = atan2(Double(forwardCamera.y), Double(forwardCamera.z)) * 180 / .pi * pitchPolarity
         return Pose(yaw: yaw, pitch: pitch)
     }
+
+    static let yawPolarity: Double = 1
+    static let pitchPolarity: Double = 1
 }
