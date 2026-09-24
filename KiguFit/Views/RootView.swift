@@ -29,5 +29,6 @@ struct RootView: View {
 
 #Preview {
     RootView()
+        .environment(AISettings())
         .modelContainer(for: [ShellProfile.self, ScanRecord.self, HeadModelScan.self], inMemory: true)
 }

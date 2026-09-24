@@ -3,6 +3,8 @@ import SwiftData
 
 @main
 struct KiguFitApp: App {
+    @State private var aiSettings = AISettings()
+
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
             ShellProfile.self,
@@ -22,6 +24,7 @@ struct KiguFitApp: App {
         WindowGroup {
             RootView()
         }
+        .environment(aiSettings)
         .modelContainer(sharedModelContainer)
     }
 }

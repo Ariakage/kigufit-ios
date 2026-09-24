@@ -12,6 +12,9 @@ struct ReportView: View {
     @State private var isRenamingClient = false
     @State private var newClientName = ""
     @State private var isShowingScaleAdvisor = false
+    @State private var isGeneratingAI = false
+    @State private var aiError: String?
+    @Environment(AISettings.self) private var aiSettings
 
     private var tapeEntries: [MeasurementKey: Double] {
         Dictionary(
@@ -209,11 +212,61 @@ struct ReportView: View {
         Section("AI 解读") {
             if let narrative = record.aiNarrative, !narrative.isEmpty {
                 Text(narrative)
+                Button {
+                    generateAI()
+                } label: {
+                    Label("重新生成", systemImage: "arrow.clockwise")
+                }
+                .disabled(!aiSettings.isConfigured || isGeneratingAI)
             } else {
-                Text("P3 阶段接入（BYOK），届时可一键生成自然语言解读并写入 PDF。")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                Button {
+                    generateAI()
+                } label: {
+                    Label("生成 AI 解读", systemImage: "sparkles")
+                }
+                .disabled(!aiSettings.isConfigured || isGeneratingAI)
+                if !aiSettings.isConfigured {
+                    Text("请先在「设置 → AI 解读（BYOK）」里配置 API Key")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
             }
+
+            if isGeneratingAI {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("正在生成解读…")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if let aiError {
+                Text(aiError)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
+        }
+    }
+
+    private func generateAI() {
+        guard aiSettings.isConfigured else { return }
+        isGeneratingAI = true
+        aiError = nil
+        let context = AIPipeline.context(from: record)
+        let messages = AIPipeline.recordMessages(context: context)
+        let client = LLMClient(
+            baseURL: aiSettings.baseURL,
+            apiKey: aiSettings.apiKey,
+            model: aiSettings.model
+        )
+        Task {
+            do {
+                let narrative = try await client.complete(messages: messages)
+                record.aiNarrative = narrative
+                generateExports()
+            } catch {
+                aiError = error.localizedDescription
+            }
+            isGeneratingAI = false
         }
     }
 
@@ -294,5 +347,6 @@ struct CheckRow: View {
     NavigationStack {
         ReportView(record: ScanRecord(clientName: "示例客户", shellName: "示例头壳"))
     }
+    .environment(AISettings())
     .modelContainer(for: [ShellProfile.self, ScanRecord.self], inMemory: true)
 }

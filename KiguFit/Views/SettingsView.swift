@@ -1,18 +1,64 @@
 import SwiftUI
 
 struct SettingsView: View {
+    @Environment(AISettings.self) private var aiSettings
+    @State private var isTesting = false
+    @State private var testStatus: String?
+
     var body: some View {
+        @Bindable var settings = aiSettings
+
         NavigationStack {
             Form {
+                Section("AI 解读（BYOK）") {
+                    Picker("服务商", selection: $settings.provider) {
+                        ForEach(AISettings.Provider.allCases) { provider in
+                            Text(provider.displayName).tag(provider)
+                        }
+                    }
+                    .onChange(of: settings.provider) { _, _ in
+                        settings.applyProviderDefaults()
+                    }
+
+                    TextField("Base URL", text: $settings.baseURL)
+                        .keyboardType(.URL)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+
+                    TextField("模型", text: $settings.model)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+
+                    SecureField("API Key", text: $settings.apiKey)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+
+                    Button {
+                        testConnection()
+                    } label: {
+                        HStack(spacing: 8) {
+                            if isTesting { ProgressView() }
+                            Text("测试连接")
+                        }
+                    }
+                    .disabled(!aiSettings.isConfigured || isTesting)
+
+                    if let testStatus {
+                        Text(testStatus)
+                            .font(.footnote)
+                            .foregroundStyle(testStatus == "连接成功" ? .green : .orange)
+                    }
+
+                    Text("Key 仅保存在本机钥匙串；生成解读时只会发送测量数值与判定结果，不上传人脸网格或原始模型。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
                 Section("测量") {
                     LabeledContent("单位", value: "毫米 (mm)")
                     LabeledContent("必填软尺项", value: "头围、头高")
                 }
-                Section("AI 解读（P3）") {
-                    Text("接入方式为用户自填 API Key（BYOK），Developer 阶段暂未开放。")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
+
                 Section("关于") {
                     LabeledContent("版本", value: appVersion)
                     Text("KiguFit — Kigurumi 头壳测量与适配工具")
@@ -21,6 +67,24 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("设置")
+        }
+    }
+
+    private func testConnection() {
+        isTesting = true
+        testStatus = nil
+        let client = LLMClient(baseURL: aiSettings.baseURL, apiKey: aiSettings.apiKey, model: aiSettings.model)
+        Task {
+            do {
+                _ = try await client.complete(
+                    messages: [LLMMessage(role: "user", content: "ping，请只回复 ok")],
+                    maxTokens: 8
+                )
+                testStatus = "连接成功"
+            } catch {
+                testStatus = "失败：\(error.localizedDescription)"
+            }
+            isTesting = false
         }
     }
 
@@ -33,4 +97,5 @@ struct SettingsView: View {
 
 #Preview {
     SettingsView()
+        .environment(AISettings())
 }
