@@ -126,6 +126,7 @@ struct ScanGuidanceView: View {
                 }
             }
         }
+        .animation(Motion.snappy, value: session.currentPose)
     }
 
     private enum PoseUIState {
@@ -158,6 +159,7 @@ struct ScanGuidanceView: View {
                     .font(.system(size: 54, weight: .light))
                     .foregroundStyle(session.isPoseSatisfied ? .green : .blue)
                     .symbolEffect(.pulse, options: .repeating)
+                    .contentTransition(.symbolEffect(.replace))
                 Text(pose.title)
                     .font(.title2.bold())
                 Text(pose.instruction)
@@ -177,13 +179,14 @@ struct ScanGuidanceView: View {
                         Text("\(collected)/\(target)")
                             .font(.title3.monospacedDigit())
                     }
-                    .animation(.easeOut(duration: 0.12), value: collected)
+                    .animation(Motion.snappy, value: collected)
                 }
 
                 Text(session.feedback)
                     .font(.headline)
                     .foregroundStyle(session.isPoseSatisfied ? .green : .orange)
-                    .animation(.none, value: session.feedback)
+                    .contentTransition(.interpolate)
+                    .animation(Motion.snappy, value: session.feedback)
 
                 Text(String(format: "偏转 %.0f° · 俯仰 %.0f°", session.liveYaw, session.livePitch))
                     .font(.caption)

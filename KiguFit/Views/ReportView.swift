@@ -39,8 +39,9 @@ struct ReportView: View {
             if let verdict = record.verdict {
                 if !verdict.checks.isEmpty {
                     Section("对照明细") {
-                        ForEach(verdict.checks, id: \.title) { check in
+                        ForEach(Array(verdict.checks.enumerated()), id: \.element.title) { index, check in
                             CheckRow(check: check)
+                                .appear(index: index)
                         }
                     }
                 }
@@ -175,8 +176,7 @@ struct ReportView: View {
                 ForEach(group.values) { value in
                     LabeledContent(value.key.displayName) {
                         HStack(spacing: 6) {
-                            Text(String(format: "%.1f mm", value.valueMM))
-                                .monospacedDigit()
+                            AnimatedNumber(value: value.valueMM, format: "%.1f mm")
                             Text(String(format: "%.2f", value.confidence))
                                 .font(.caption2)
                                 .foregroundStyle(.tertiary)
@@ -212,6 +212,7 @@ struct ReportView: View {
         Section("AI 解读") {
             if let narrative = record.aiNarrative, !narrative.isEmpty {
                 Text(narrative)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
                 Button {
                     generateAI()
                 } label: {
@@ -243,8 +244,12 @@ struct ReportView: View {
                 Text(aiError)
                     .font(.footnote)
                     .foregroundStyle(.red)
+                    .transition(.opacity)
             }
         }
+        .animation(Motion.smooth, value: record.aiNarrative)
+        .animation(Motion.snappy, value: isGeneratingAI)
+        .sensoryFeedback(.success, trigger: record.aiNarrative != nil)
     }
 
     private func generateAI() {
@@ -262,7 +267,9 @@ struct ReportView: View {
         Task {
             do {
                 let narrative = try await client.complete(messages: messages)
-                record.aiNarrative = narrative
+                withAnimation(Motion.smooth) {
+                    record.aiNarrative = narrative
+                }
                 generateExports()
             } catch {
                 aiError = error.localizedDescription

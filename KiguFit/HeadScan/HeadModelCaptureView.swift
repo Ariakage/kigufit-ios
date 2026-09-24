@@ -10,24 +10,17 @@ struct HeadModelCaptureView: View {
     @State private var isPrepared = false
 
     var body: some View {
-        Group {
-            switch model.phase {
-            case .unsupported:
-                unsupportedView
-            case .preparing, .capturing:
-                if isPrepared {
-                    captureView
-                } else {
-                    preparationView
-                }
-            case let .reconstructing(progress):
-                reconstructingView(progress: progress)
-            case .done:
-                doneView()
-            case let .failed(message):
-                failedView(message: message)
-            }
+        ZStack {
+            phaseContent
+                .id(stageID)
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.98)),
+                    removal: .opacity
+                ))
         }
+        .animation(Motion.smooth, value: stageID)
+        .sensoryFeedback(.selection, trigger: stageID)
+        .sensoryFeedback(.success, trigger: stageID == "done")
         .navigationTitle("扫描头模")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -218,9 +211,11 @@ struct HeadModelCaptureView: View {
     private func doneView() -> some View {
         List {
             Section {
-                Label("扫描完成", systemImage: "checkmark.seal.fill")
-                    .foregroundStyle(.green)
-                    .font(.headline)
+                HStack(spacing: 8) {
+                    SuccessSymbol()
+                    Text("扫描完成")
+                        .font(.headline)
+                }
                 if let record = model.savedRecord {
                     LabeledContent("名称", value: record.name)
                     LabeledContent("拍摄张数", value: "\(record.shotCount)")
@@ -247,5 +242,36 @@ struct HeadModelCaptureView: View {
             systemImage: "exclamationmark.triangle",
             description: Text(message)
         )
+    }
+
+    private var stageID: String {
+        switch model.phase {
+        case .unsupported: return "unsupported"
+        case .preparing: return isPrepared ? "capturing" : "preparing"
+        case .capturing: return "capturing"
+        case .reconstructing: return "reconstructing"
+        case .done: return "done"
+        case .failed: return "failed"
+        }
+    }
+
+    @ViewBuilder
+    private var phaseContent: some View {
+        switch model.phase {
+        case .unsupported:
+            unsupportedView
+        case .preparing, .capturing:
+            if isPrepared {
+                captureView
+            } else {
+                preparationView
+            }
+        case let .reconstructing(progress):
+            reconstructingView(progress: progress)
+        case .done:
+            doneView()
+        case let .failed(message):
+            failedView(message: message)
+        }
     }
 }

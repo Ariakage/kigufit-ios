@@ -27,9 +27,15 @@ struct ScaleAdvisorView: View {
                                         .font(.caption.bold())
                                         .foregroundStyle(color(for: requirement.status))
                                 }
-                                Text(String(format: "需要 %.1f · 当前 %.1f（%@）", requirement.needMM, requirement.currentMM, requirement.basis))
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
+                                HStack(spacing: 0) {
+                                    Text("需要 ")
+                                    AnimatedNumber(value: requirement.needMM)
+                                    Text(" · 当前 ")
+                                    AnimatedNumber(value: requirement.currentMM)
+                                    Text("（\(requirement.basis)）")
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                             }
                             .padding(.vertical, 2)
                         }
@@ -40,8 +46,12 @@ struct ScaleAdvisorView: View {
                             Label("按当前配置，现有内腔已满足加海绵需求", systemImage: "checkmark.circle.fill")
                                 .foregroundStyle(.green)
                         } else {
-                            Text(String(format: "建议均匀放大约 %.1f%%", result.uniformScalePercent))
-                                .font(.headline)
+                            HStack(spacing: 0) {
+                                Text("建议均匀放大约 ")
+                                AnimatedNumber(value: result.uniformScalePercent)
+                                Text("%")
+                            }
+                            .font(.headline)
                             ForEach(result.directions, id: \.self) { direction in
                                 Text("• " + direction)
                                     .font(.callout)
@@ -87,6 +97,7 @@ struct ScaleAdvisorView: View {
                     .foregroundStyle(.secondary)
             }
             Slider(value: value, in: range, step: 1)
+                .sensoryFeedback(.selection, trigger: Int(value.wrappedValue))
         }
     }
 

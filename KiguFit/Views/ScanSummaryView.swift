@@ -29,8 +29,7 @@ struct ScanSummaryView: View {
                     ForEach(group.values) { value in
                         LabeledContent(value.key.displayName) {
                             HStack(spacing: 6) {
-                                Text(String(format: "%.1f mm", value.valueMM))
-                                    .monospacedDigit()
+                                AnimatedNumber(value: value.valueMM, format: "%.1f mm")
                                 if value.source == .estimated {
                                     Text("估算")
                                         .font(.caption2)

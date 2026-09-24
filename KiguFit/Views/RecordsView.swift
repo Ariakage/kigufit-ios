@@ -26,12 +26,13 @@ struct RecordsView: View {
                     )
                 } else {
                     List {
-                        ForEach(filteredRecords) { record in
+                        ForEach(Array(filteredRecords.enumerated()), id: \.element.id) { index, record in
                             NavigationLink {
                                 ReportView(record: record)
                             } label: {
                                 RecordRow(record: record)
                             }
+                            .appear(index: index)
                         }
                         .onDelete(perform: deleteRecords)
                     }

@@ -21,7 +21,7 @@ struct ShellsView: View {
                     )
                 } else {
                     List {
-                        ForEach(shells) { shell in
+                        ForEach(Array(shells.enumerated()), id: \.element.id) { index, shell in
                             NavigationLink {
                                 ShellDetailView(shell: shell)
                             } label: {
@@ -33,6 +33,7 @@ struct ShellsView: View {
                                 }
                                 .padding(.vertical, 2)
                             }
+                            .appear(index: index)
                         }
                         .onDelete(perform: deleteShells)
                     }
@@ -174,6 +175,8 @@ struct ShellsView: View {
 
 struct ShellDetailView: View {
     let shell: ShellProfile
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var drawProgress: CGFloat = 0
     @State private var exportURL: URL?
     @State private var isRenaming = false
     @State private var newName = ""
@@ -232,6 +235,7 @@ struct ShellDetailView: View {
             Section("AI 解读") {
                 if let text = shell.payload?.aiInterpretation, !text.isEmpty {
                     Text(text)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                     Button {
                         generateAI()
                     } label: {
@@ -262,8 +266,11 @@ struct ShellDetailView: View {
                     Text(aiError)
                         .font(.footnote)
                         .foregroundStyle(.red)
+                        .transition(.opacity)
                 }
             }
+            .animation(Motion.smooth, value: shell.payload?.aiInterpretation)
+            .animation(Motion.snappy, value: isGeneratingAI)
 
             Section("导出") {
                 if let exportURL {
@@ -323,10 +330,16 @@ struct ShellDetailView: View {
                             path.addLine(to: CGPoint(x: x, y: y))
                         }
                     }
-                    context.stroke(path, with: .color(.blue), lineWidth: 2)
+                    let trimmed = path.trimmedPath(from: 0, to: drawProgress)
+                    context.stroke(trimmed, with: .color(.blue), style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
                 }
                 .frame(height: 120)
                 .padding(.vertical, 4)
+                .onAppear {
+                    withAnimation(Motion.gentle.delay(0.2)) {
+                        drawProgress = 1
+                    }
+                }
                 Text("横轴：内底→顶部  纵轴：内腔宽度（左窄右宽）")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
@@ -358,7 +371,9 @@ struct ShellDetailView: View {
         Task {
             do {
                 let text = try await client.complete(messages: messages, maxTokens: 600)
-                shell.setAIInterpretation(text)
+                withAnimation(Motion.smooth) {
+                    shell.setAIInterpretation(text)
+                }
             } catch {
                 aiError = error.localizedDescription
             }

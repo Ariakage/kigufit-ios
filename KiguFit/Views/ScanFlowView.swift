@@ -90,41 +90,16 @@ struct ScanFlowView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
-                switch model.step {
-                case .setup:
-                    setupView
-                case .scan:
-                    ScanGuidanceView(
-                        session: model.scanSession,
-                        onFinished: model.handleScanFinished,
-                        onSkip: model.skipScan
-                    )
-                case .manual:
-                    ManualEntryView(
-                        initialEntries: model.manualEntries,
-                        scanSkipped: model.scanSkipped,
-                        onContinue: { entries in
-                            model.manualEntries = entries
-                            model.buildPreview()
-                        },
-                        onBack: { model.step = .scan }
-                    )
-                case .summary:
-                    ScanSummaryView(
-                        measurements: model.previewMeasurements,
-                        hasShell: model.selectedShell != nil,
-                        onGenerate: { model.generateReport(modelContext: modelContext) },
-                        onBack: { model.step = .manual }
-                    )
-                case .report:
-                    if let record = model.savedRecord {
-                        ReportView(record: record, embedded: true, onDone: { dismiss() })
-                    } else {
-                        ContentUnavailableView("生成失败", systemImage: "exclamationmark.triangle")
-                    }
-                }
+            ZStack {
+                stepContent
+                    .id(model.step)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .trailing).combined(with: .opacity),
+                        removal: .move(edge: .leading).combined(with: .opacity)
+                    ))
             }
+            .animation(Motion.smooth, value: model.step)
+            .sensoryFeedback(.selection, trigger: model.step)
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -182,6 +157,43 @@ struct ScanFlowView: View {
         .onAppear {
             if model.selectedShell == nil, let first = shells.first {
                 model.selectedShell = first
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var stepContent: some View {
+        switch model.step {
+        case .setup:
+            setupView
+        case .scan:
+            ScanGuidanceView(
+                session: model.scanSession,
+                onFinished: model.handleScanFinished,
+                onSkip: model.skipScan
+            )
+        case .manual:
+            ManualEntryView(
+                initialEntries: model.manualEntries,
+                scanSkipped: model.scanSkipped,
+                onContinue: { entries in
+                    model.manualEntries = entries
+                    model.buildPreview()
+                },
+                onBack: { model.step = .scan }
+            )
+        case .summary:
+            ScanSummaryView(
+                measurements: model.previewMeasurements,
+                hasShell: model.selectedShell != nil,
+                onGenerate: { model.generateReport(modelContext: modelContext) },
+                onBack: { model.step = .manual }
+            )
+        case .report:
+            if let record = model.savedRecord {
+                ReportView(record: record, embedded: true, onDone: { dismiss() })
+            } else {
+                ContentUnavailableView("生成失败", systemImage: "exclamationmark.triangle")
             }
         }
     }

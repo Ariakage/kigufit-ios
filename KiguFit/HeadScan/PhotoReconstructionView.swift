@@ -27,20 +27,17 @@ struct PhotoReconstructionView: View {
     @State private var isLoadingPhotos = false
 
     var body: some View {
-        Group {
-            switch model.phase {
-            case .picking:
-                pickingView
-            case .preparing:
-                progressView(progress: 0, title: "正在处理照片…")
-            case let .reconstructing(progress):
-                progressView(progress: progress, title: "机内重建 3D 模型中 \(Int(progress * 100))%")
-            case .done:
-                doneView
-            case let .failed(message):
-                failedView(message: message)
-            }
+        ZStack {
+            phaseContent
+                .id(stageID)
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.98)),
+                    removal: .opacity
+                ))
         }
+        .animation(Motion.smooth, value: stageID)
+        .sensoryFeedback(.selection, trigger: stageID)
+        .sensoryFeedback(.success, trigger: stageID == "done")
         .navigationTitle("照片重建")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -126,9 +123,11 @@ struct PhotoReconstructionView: View {
     private var doneView: some View {
         List {
             Section {
-                Label("重建完成", systemImage: "checkmark.seal.fill")
-                    .foregroundStyle(.green)
-                    .font(.headline)
+                HStack(spacing: 8) {
+                    SuccessSymbol()
+                    Text("重建完成")
+                        .font(.headline)
+                }
                 if let record = model.savedRecord {
                     LabeledContent("名称", value: record.name)
                     LabeledContent("使用照片", value: "\(record.shotCount) 张")
@@ -186,6 +185,32 @@ struct PhotoReconstructionView: View {
             selectedItems = []
             selectedVideos = []
             model.start(imageData: datas, videoURLs: urls)
+        }
+    }
+
+    private var stageID: String {
+        switch model.phase {
+        case .picking: return "picking"
+        case .preparing: return "preparing"
+        case .reconstructing: return "reconstructing"
+        case .done: return "done"
+        case .failed: return "failed"
+        }
+    }
+
+    @ViewBuilder
+    private var phaseContent: some View {
+        switch model.phase {
+        case .picking:
+            pickingView
+        case .preparing:
+            progressView(progress: 0, title: "正在处理照片…")
+        case let .reconstructing(progress):
+            progressView(progress: progress, title: "机内重建 3D 模型中 \(Int(progress * 100))%")
+        case .done:
+            doneView
+        case let .failed(message):
+            failedView(message: message)
         }
     }
 }

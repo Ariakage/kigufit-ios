@@ -18,12 +18,13 @@ struct HeadModelsView: View {
                     )
                 } else {
                     List {
-                        ForEach(models) { model in
+                        ForEach(Array(models.enumerated()), id: \.element.id) { index, model in
                             NavigationLink {
                                 HeadModelDetailView(model: model)
                             } label: {
                                 HeadModelRow(model: model)
                             }
+                            .appear(index: index)
                         }
                         .onDelete(perform: deleteModels)
                     }
@@ -113,19 +114,22 @@ struct HeadModelDetailView: View {
 
             Section("自动测量") {
                 if let analysis {
-                    LabeledContent("头宽 (扫描)", value: String(format: "%.1f mm", analysis.headWidth))
-                    LabeledContent("头深 (扫描)", value: String(format: "%.1f mm", analysis.headDepth))
-                    LabeledContent("头顶-颈部高", value: String(format: "%.0f mm", analysis.headHeightApprox))
-                    LabeledContent("估算头围", value: String(format: "%.0f mm", analysis.estimatedCircumference))
+                    LabeledContent("头宽 (扫描)") { AnimatedNumber(value: analysis.headWidth, format: "%.1f mm") }
+                    LabeledContent("头深 (扫描)") { AnimatedNumber(value: analysis.headDepth, format: "%.1f mm") }
+                    LabeledContent("头顶-颈部高") { AnimatedNumber(value: analysis.headHeightApprox, format: "%.0f mm") }
+                    LabeledContent("估算头围") { AnimatedNumber(value: analysis.estimatedCircumference, format: "%.0f mm") }
                     ForEach(analysis.notes, id: \.self) { note in
                         Text(note)
                             .font(.footnote)
                             .foregroundStyle(.secondary)
                     }
                     if recordCreated {
-                        Label("已生成测量记录（见「记录」页）", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                            .font(.callout)
+                        HStack(spacing: 6) {
+                            SuccessSymbol(systemName: "checkmark.circle.fill")
+                            Text("已生成测量记录（见「记录」页）")
+                                .font(.callout)
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                     } else {
                         Button {
                             createRecord(from: analysis)
@@ -207,7 +211,9 @@ struct HeadModelDetailView: View {
             measurements: analysis.measurements()
         )
         modelContext.insert(record)
-        recordCreated = true
+        withAnimation(Motion.smooth) {
+            recordCreated = true
+        }
     }
 }
 

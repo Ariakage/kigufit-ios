@@ -67,6 +67,8 @@ struct ManualEntryView: View {
                     Label("下一步：测量总览", systemImage: "chevron.right")
                 }
                 .disabled(!isValid)
+                .animation(Motion.snappy, value: isValid)
+                .sensoryFeedback(.selection, trigger: isValid)
             }
         }
         .sheet(item: $guideKey) { key in

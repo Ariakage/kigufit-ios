@@ -47,9 +47,11 @@ struct SettingsView: View {
                         Text(testStatus)
                             .font(.footnote)
                             .foregroundStyle(testStatus == "连接成功" ? .green : .orange)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
                     }
 
                     Toggle("允许 AI 读取几何数据", isOn: $settings.allowGeometryUpload)
+                        .sensoryFeedback(.selection, trigger: aiSettings.allowGeometryUpload)
 
                     Text(aiSettings.allowGeometryUpload
                          ? "已开启：AI 解读请求会附带降采样的几何摘要（内腔截面轮廓 / 面部点云采样），仅发送给你自己配置的服务商。"
