@@ -9,6 +9,7 @@ nonisolated struct ShellProfilePayload: Codable, Hashable, Sendable {
     var eyeHoles: EyeHoles?
     var fit: FitSpec?
     var notes: String?
+    var aiInterpretation: String?
 
     init(
         schema: String = "kigufit.shell/v1",
@@ -18,7 +19,8 @@ nonisolated struct ShellProfilePayload: Codable, Hashable, Sendable {
         inner: InnerDimensions,
         eyeHoles: EyeHoles? = nil,
         fit: FitSpec? = nil,
-        notes: String? = nil
+        notes: String? = nil,
+        aiInterpretation: String? = nil
     ) {
         self.schema = schema
         self.name = name
@@ -28,6 +30,7 @@ nonisolated struct ShellProfilePayload: Codable, Hashable, Sendable {
         self.eyeHoles = eyeHoles
         self.fit = fit
         self.notes = notes
+        self.aiInterpretation = aiInterpretation
     }
 
     struct SourceInfo: Codable, Hashable, Sendable {

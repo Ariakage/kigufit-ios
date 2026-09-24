@@ -2,12 +2,16 @@ import SwiftUI
 
 struct ShellAnalysisPreviewView: View {
     let analysis: ShellAnalysis
-    let onSave: (String) -> Void
+    let onSave: (String, String?) -> Void
 
     @State private var name: String
+    @State private var interpretation: String?
+    @State private var isGeneratingAI = false
+    @State private var aiError: String?
     @Environment(\.dismiss) private var dismiss
+    @Environment(AISettings.self) private var aiSettings
 
-    init(analysis: ShellAnalysis, onSave: @escaping (String) -> Void) {
+    init(analysis: ShellAnalysis, onSave: @escaping (String, String?) -> Void) {
         self.analysis = analysis
         self.onSave = onSave
         _name = State(initialValue: analysis.name)
@@ -54,9 +58,38 @@ struct ShellAnalysisPreviewView: View {
                     }
                 }
 
+                Section("AI 解读") {
+                    if let interpretation {
+                        Text(interpretation)
+                    }
+                    Button {
+                        generateAI()
+                    } label: {
+                        Label(interpretation == nil ? "生成 AI 解读" : "重新生成", systemImage: "sparkles")
+                    }
+                    .disabled(!aiSettings.isConfigured || isGeneratingAI)
+                    if !aiSettings.isConfigured {
+                        Text("请先在「设置 → AI 解读（BYOK）」里配置 API Key")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    if isGeneratingAI {
+                        HStack(spacing: 8) {
+                            ProgressView()
+                            Text("正在生成…")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    if let aiError {
+                        Text(aiError)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+                }
+
                 Section {
                     Button {
-                        onSave(name.trimmingCharacters(in: .whitespacesAndNewlines))
+                        onSave(name.trimmingCharacters(in: .whitespacesAndNewlines), interpretation)
                         dismiss()
                     } label: {
                         Label("保存为头壳档案", systemImage: "square.and.arrow.down")
@@ -71,6 +104,26 @@ struct ShellAnalysisPreviewView: View {
                     Button("取消") { dismiss() }
                 }
             }
+        }
+    }
+
+    private func generateAI() {
+        guard aiSettings.isConfigured else { return }
+        isGeneratingAI = true
+        aiError = nil
+        let messages = AIPipeline.shellMessages(context: AIPipeline.context(from: analysis))
+        let client = LLMClient(
+            baseURL: aiSettings.baseURL,
+            apiKey: aiSettings.apiKey,
+            model: aiSettings.model
+        )
+        Task {
+            do {
+                interpretation = try await client.complete(messages: messages, maxTokens: 600)
+            } catch {
+                aiError = error.localizedDescription
+            }
+            isGeneratingAI = false
         }
     }
 }

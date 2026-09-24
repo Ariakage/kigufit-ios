@@ -22,6 +22,26 @@ struct AIPipelineTests {
         #expect(messages[1].content.contains("适配"))
         #expect(messages[1].content.contains("内腔宽度"))
     }
+
+    @Test func shellPromptIncludesKeyDimensions() {
+        let context = AIPipeline.ShellContext(
+            name: "测试壳",
+            outerWidth: 232,
+            outerDepth: 317,
+            outerHeight: 297,
+            innerHeight: 293,
+            wallThickness: 3,
+            bandWidth: 213,
+            bowlWidth: 180.5,
+            eyeHoles: nil,
+            fitRange: "520–620 mm",
+            notes: nil
+        )
+        let messages = AIPipeline.shellMessages(context: context)
+        #expect(messages.count == 2)
+        #expect(messages[1].content.contains("213.0"))
+        #expect(messages[1].content.contains("520–620"))
+    }
 }
 
 struct LLMClientTests {

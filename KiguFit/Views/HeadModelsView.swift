@@ -97,6 +97,11 @@ private struct HeadModelRow: View {
 
 struct HeadModelDetailView: View {
     let model: HeadModelScan
+    @Environment(\.modelContext) private var modelContext
+    @State private var isAnalyzing = false
+    @State private var analysis: HeadScanAnalysis?
+    @State private var analysisError: String?
+    @State private var recordCreated = false
 
     var body: some View {
         List {
@@ -105,6 +110,56 @@ struct HeadModelDetailView: View {
                 LabeledContent("创建时间", value: model.formattedDate)
                 LabeledContent("拍摄张数", value: "\(model.shotCount)")
             }
+
+            Section("自动测量") {
+                if let analysis {
+                    LabeledContent("头宽 (扫描)", value: String(format: "%.1f mm", analysis.headWidth))
+                    LabeledContent("头深 (扫描)", value: String(format: "%.1f mm", analysis.headDepth))
+                    LabeledContent("头顶-颈部高", value: String(format: "%.0f mm", analysis.headHeightApprox))
+                    LabeledContent("估算头围", value: String(format: "%.0f mm", analysis.estimatedCircumference))
+                    ForEach(analysis.notes, id: \.self) { note in
+                        Text(note)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    if recordCreated {
+                        Label("已生成测量记录（见「记录」页）", systemImage: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .font(.callout)
+                    } else {
+                        Button {
+                            createRecord(from: analysis)
+                        } label: {
+                            Label("生成测量记录", systemImage: "square.and.pencil")
+                        }
+                    }
+                } else {
+                    Button {
+                        analyze()
+                    } label: {
+                        if isAnalyzing {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                Text("正在分析头模…")
+                            }
+                        } else {
+                            Label("分析头模尺寸", systemImage: "ruler")
+                        }
+                    }
+                    .disabled(isAnalyzing || model.objURL == nil)
+                    if model.objURL == nil {
+                        Text("该模型没有 OBJ 文件，无法自动测量")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let analysisError {
+                        Text(analysisError)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                    }
+                }
+            }
+
             Section("导出") {
                 ShareLink(item: model.usdzURL, preview: SharePreview("\(model.name).usdz")) {
                     Label("导出 USDZ 模型", systemImage: "cube")
@@ -121,6 +176,38 @@ struct HeadModelDetailView: View {
             }
         }
         .navigationTitle(model.name)
+    }
+
+    private func analyze() {
+        guard let objURL = model.objURL else { return }
+        isAnalyzing = true
+        analysis = nil
+        analysisError = nil
+
+        let name = model.name
+        Task {
+            do {
+                let result = try await Task.detached(priority: .userInitiated) {
+                    let data = try Data(contentsOf: objURL)
+                    let mesh = try OBJParser.parse(data: data)
+                    return try HeadMeshAnalyzer.analyze(mesh: mesh, name: name)
+                }.value
+                analysis = result
+            } catch {
+                analysisError = error.localizedDescription
+            }
+            isAnalyzing = false
+        }
+    }
+
+    private func createRecord(from analysis: HeadScanAnalysis) {
+        let record = ScanRecord(
+            clientName: model.name,
+            shellName: "未指定头壳",
+            measurements: analysis.measurements()
+        )
+        modelContext.insert(record)
+        recordCreated = true
     }
 }
 

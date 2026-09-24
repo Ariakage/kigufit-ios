@@ -82,4 +82,86 @@ nonisolated enum AIPipeline {
             LLMMessage(role: "user", content: lines.joined(separator: "\n"))
         ]
     }
+
+    struct ShellContext: Sendable {
+        var name: String
+        var outerWidth: Double
+        var outerDepth: Double
+        var outerHeight: Double
+        var innerHeight: Double
+        var wallThickness: Double?
+        var bandWidth: Double?
+        var bowlWidth: Double?
+        var eyeHoles: String?
+        var fitRange: String?
+        var notes: String?
+    }
+
+    static func context(from analysis: ShellAnalysis) -> ShellContext {
+        ShellContext(
+            name: analysis.name,
+            outerWidth: analysis.outerWidth,
+            outerDepth: analysis.outerDepth,
+            outerHeight: analysis.outerHeight,
+            innerHeight: analysis.innerHeight,
+            wallThickness: analysis.wallThickness,
+            bandWidth: analysis.width(atFraction: 0.5),
+            bowlWidth: analysis.faceBowlWidth,
+            eyeHoles: analysis.eyeHoles.map {
+                String(format: "%.0f×%.0f mm，中心距 %.0f mm，高于内底 %.0f mm", $0.width, $0.height, $0.spacing, $0.aboveInnerBottom)
+            },
+            fitRange: nil,
+            notes: analysis.notes.joined(separator: "；")
+        )
+    }
+
+    static func context(from payload: ShellProfilePayload) -> ShellContext {
+        ShellContext(
+            name: payload.name,
+            outerWidth: payload.outer.width,
+            outerDepth: payload.outer.depth,
+            outerHeight: payload.outer.height,
+            innerHeight: payload.inner.height,
+            wallThickness: payload.inner.wallThickness,
+            bandWidth: payload.inner.bandWidth(),
+            bowlWidth: payload.inner.bowlWidth(),
+            eyeHoles: payload.eyeHoles.map {
+                String(format: "%.0f×%.0f mm，中心距 %.0f mm，高于内底 %.0f mm", $0.width, $0.height, $0.centerSpacing, $0.centerAboveInnerBottom)
+            },
+            fitRange: payload.fit?.headCircumferenceRange.map { String(format: "%.0f–%.0f mm", $0[0], $0[1]) },
+            notes: payload.notes
+        )
+    }
+
+    static func shellMessages(context: ShellContext) -> [LLMMessage] {
+        let system = """
+        你是 Kigurumi 头壳定制工作室的技术顾问。根据提供的头壳内部尺寸数据，用中文写一段 120~200 字的规格解读，面向店家与建模方：        先一句话概括这是什么类型的头壳（容积大小/脸型宽窄/头围适配倾向），再引用关键数值说明（内腔宽度、脸碗、内腔高、眼孔），        最后给 1~2 条使用建议（适合的头围区间、海绵配置或需要注意的适配点）。只使用提供的数据，不要编造任何数值，不要使用 Markdown。
+        """
+        var lines: [String] = []
+        lines.append("头壳：\(context.name)")
+        lines.append(String(format: "外形：%.0f × %.0f × %.0f mm（宽×深×高）", context.outerWidth, context.outerDepth, context.outerHeight))
+        lines.append(String(format: "内腔高：%.1f mm", context.innerHeight))
+        if let wall = context.wallThickness {
+            lines.append(String(format: "壁厚：%.1f mm", wall))
+        }
+        if let band = context.bandWidth {
+            lines.append(String(format: "头带高度内宽：%.1f mm（单侧余量按头宽推算）", band))
+        }
+        if let bowl = context.bowlWidth {
+            lines.append(String(format: "脸碗内宽（嘴部水平）：%.1f mm", bowl))
+        }
+        if let eyes = context.eyeHoles {
+            lines.append("眼孔：\(eyes)")
+        }
+        if let range = context.fitRange {
+            lines.append("档案标注建议头围：\(range)")
+        }
+        if let notes = context.notes, !notes.isEmpty {
+            lines.append("备注：\(notes)")
+        }
+        return [
+            LLMMessage(role: "system", content: system),
+            LLMMessage(role: "user", content: lines.joined(separator: "\n"))
+        ]
+    }
 }

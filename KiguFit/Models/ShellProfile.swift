@@ -36,6 +36,15 @@ final class ShellProfile {
         }
     }
 
+    func setAIInterpretation(_ text: String) {
+        guard var current = payload else { return }
+        current.aiInterpretation = text
+        if let data = try? current.encoded() {
+            payloadData = data
+            updatedAt = Date()
+        }
+    }
+
     var outerSummary: String {
         guard let outer = payload?.outer else { return "" }
         return String(format: "外 %.0f×%.0f×%.0f mm", outer.width, outer.depth, outer.height)

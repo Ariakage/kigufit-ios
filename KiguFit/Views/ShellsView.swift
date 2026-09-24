@@ -97,8 +97,8 @@ struct ShellsView: View {
                 set: { if !$0 { analyzer.clearPreview() } }
             )) {
                 if let preview = analyzer.preview {
-                    ShellAnalysisPreviewView(analysis: preview) { name in
-                        saveAnalysis(preview, name: name)
+                    ShellAnalysisPreviewView(analysis: preview) { name, interpretation in
+                        saveAnalysis(preview, name: name, interpretation: interpretation)
                     }
                 }
             }
@@ -133,9 +133,10 @@ struct ShellsView: View {
         }
     }
 
-    private func saveAnalysis(_ analysis: ShellAnalysis, name: String) {
+    private func saveAnalysis(_ analysis: ShellAnalysis, name: String, interpretation: String?) {
         var payload = analysis.payload(sourceFile: analysis.sourceFile)
         payload.name = name
+        payload.aiInterpretation = interpretation
         modelContext.insert(ShellProfile(payload: payload, sourceFileName: analysis.sourceFile))
     }
 
@@ -176,6 +177,9 @@ struct ShellDetailView: View {
     @State private var exportURL: URL?
     @State private var isRenaming = false
     @State private var newName = ""
+    @State private var isGeneratingAI = false
+    @State private var aiError: String?
+    @Environment(AISettings.self) private var aiSettings
 
     var body: some View {
         List {
@@ -223,6 +227,42 @@ struct ShellDetailView: View {
                 }
             } else {
                 ContentUnavailableView("档案数据无效", systemImage: "exclamationmark.triangle")
+            }
+
+            Section("AI 解读") {
+                if let text = shell.payload?.aiInterpretation, !text.isEmpty {
+                    Text(text)
+                    Button {
+                        generateAI()
+                    } label: {
+                        Label("重新生成", systemImage: "arrow.clockwise")
+                    }
+                    .disabled(!aiSettings.isConfigured || isGeneratingAI)
+                } else {
+                    Button {
+                        generateAI()
+                    } label: {
+                        Label("生成 AI 解读", systemImage: "sparkles")
+                    }
+                    .disabled(!aiSettings.isConfigured || isGeneratingAI)
+                    if !aiSettings.isConfigured {
+                        Text("请先在「设置 → AI 解读（BYOK）」里配置 API Key")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if isGeneratingAI {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text("正在生成…")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                if let aiError {
+                    Text(aiError)
+                        .font(.footnote)
+                        .foregroundStyle(.red)
+                }
             }
 
             Section("导出") {
@@ -303,9 +343,31 @@ struct ShellDetailView: View {
     private func mm(_ value: Double) -> String {
         String(format: "%.1f mm", value)
     }
+
+    private func generateAI() {
+        guard let payload = shell.payload, aiSettings.isConfigured else { return }
+        isGeneratingAI = true
+        aiError = nil
+        let messages = AIPipeline.shellMessages(context: AIPipeline.context(from: payload))
+        let client = LLMClient(
+            baseURL: aiSettings.baseURL,
+            apiKey: aiSettings.apiKey,
+            model: aiSettings.model
+        )
+        Task {
+            do {
+                let text = try await client.complete(messages: messages, maxTokens: 600)
+                shell.setAIInterpretation(text)
+            } catch {
+                aiError = error.localizedDescription
+            }
+            isGeneratingAI = false
+        }
+    }
 }
 
 #Preview {
     ShellsView()
+        .environment(AISettings())
         .modelContainer(for: [ShellProfile.self, ScanRecord.self], inMemory: true)
 }
