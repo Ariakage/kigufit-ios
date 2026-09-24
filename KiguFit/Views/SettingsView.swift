@@ -49,7 +49,11 @@ struct SettingsView: View {
                             .foregroundStyle(testStatus == "连接成功" ? .green : .orange)
                     }
 
-                    Text("Key 仅保存在本机钥匙串；生成解读时只会发送测量数值与判定结果，不上传人脸网格或原始模型。")
+                    Toggle("允许 AI 读取几何数据", isOn: $settings.allowGeometryUpload)
+
+                    Text(aiSettings.allowGeometryUpload
+                         ? "已开启：AI 解读请求会附带降采样的几何摘要（内腔截面轮廓 / 面部点云采样），仅发送给你自己配置的服务商。"
+                         : "关闭时只发送测量数值与判定结果，不上传任何几何数据；Key 仅保存在本机钥匙串。")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

@@ -348,7 +348,8 @@ struct ShellDetailView: View {
         guard let payload = shell.payload, aiSettings.isConfigured else { return }
         isGeneratingAI = true
         aiError = nil
-        let messages = AIPipeline.shellMessages(context: AIPipeline.context(from: payload))
+        let geometry = aiSettings.allowGeometryUpload ? payload.inner.contours.flatMap { AIPipeline.contourBlock(from: $0) } : nil
+        let messages = AIPipeline.shellMessages(context: AIPipeline.context(from: payload), geometry: geometry)
         let client = LLMClient(
             baseURL: aiSettings.baseURL,
             apiKey: aiSettings.apiKey,

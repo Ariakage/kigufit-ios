@@ -65,6 +65,12 @@ final class AISettings {
         }
     }
 
+    var allowGeometryUpload: Bool {
+        didSet {
+            UserDefaults.standard.set(allowGeometryUpload, forKey: Keys.allowGeometryUpload)
+        }
+    }
+
     var isConfigured: Bool {
         !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -78,6 +84,7 @@ final class AISettings {
         self.baseURL = defaults.string(forKey: Keys.baseURL) ?? provider.defaultBaseURL
         self.model = defaults.string(forKey: Keys.model) ?? provider.defaultModel
         self.apiKey = KeychainStore.load(Keys.apiKey) ?? ""
+        self.allowGeometryUpload = defaults.bool(forKey: Keys.allowGeometryUpload)
     }
 
     func applyProviderDefaults() {
@@ -90,5 +97,6 @@ final class AISettings {
         static let baseURL = "ai.baseURL"
         static let model = "ai.model"
         static let apiKey = "ai.apiKey"
+        static let allowGeometryUpload = "ai.allowGeometryUpload"
     }
 }

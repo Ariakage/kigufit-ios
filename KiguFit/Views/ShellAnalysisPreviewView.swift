@@ -111,7 +111,8 @@ struct ShellAnalysisPreviewView: View {
         guard aiSettings.isConfigured else { return }
         isGeneratingAI = true
         aiError = nil
-        let messages = AIPipeline.shellMessages(context: AIPipeline.context(from: analysis))
+        let geometry = aiSettings.allowGeometryUpload ? AIPipeline.contourBlock(from: analysis.contourSamples) : nil
+        let messages = AIPipeline.shellMessages(context: AIPipeline.context(from: analysis), geometry: geometry)
         let client = LLMClient(
             baseURL: aiSettings.baseURL,
             apiKey: aiSettings.apiKey,

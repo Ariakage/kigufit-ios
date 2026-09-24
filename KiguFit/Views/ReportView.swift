@@ -252,7 +252,8 @@ struct ReportView: View {
         isGeneratingAI = true
         aiError = nil
         let context = AIPipeline.context(from: record)
-        let messages = AIPipeline.recordMessages(context: context)
+        let geometry = aiSettings.allowGeometryUpload ? AIPipeline.faceGeometrySummary(for: record) : nil
+        let messages = AIPipeline.recordMessages(context: context, geometry: geometry)
         let client = LLMClient(
             baseURL: aiSettings.baseURL,
             apiKey: aiSettings.apiKey,

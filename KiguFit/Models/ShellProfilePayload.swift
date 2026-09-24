@@ -50,6 +50,7 @@ nonisolated struct ShellProfilePayload: Codable, Hashable, Sendable {
         var widthProfile: [WidthPoint]
         var depthProfile: [DepthPoint]?
         var faceBowlWidth: Double?
+        var contours: [ContourLine]? = nil
 
         func innerWidth(nearest z: Double) -> Double? {
             guard !widthProfile.isEmpty else { return nil }
@@ -86,6 +87,11 @@ nonisolated struct ShellProfilePayload: Codable, Hashable, Sendable {
         func bowlWidth() -> Double? {
             faceBowlWidth ?? width(atFraction: 0.22)
         }
+    }
+
+    struct ContourLine: Codable, Hashable, Sendable {
+        var fraction: Double
+        var points: [Double]
     }
 
     struct WidthPoint: Codable, Hashable, Sendable {

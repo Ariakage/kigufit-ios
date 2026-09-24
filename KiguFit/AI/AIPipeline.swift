@@ -42,7 +42,7 @@ nonisolated enum AIPipeline {
         )
     }
 
-    static func recordMessages(context: ReportContext) -> [LLMMessage] {
+    static func recordMessages(context: ReportContext, geometry: String? = nil) -> [LLMMessage] {
         let system = """
         你是 Kigurumi 头壳定制工作室的测量顾问。根据提供的测量数据与适配判定，用中文写一段 150~250 字的解读，面向佩戴客户与头壳制作方：\
         先用一句话给出结论，再引用关键数值说明依据，最后给出 1~2 条可执行的佩戴或制作建议（例如海绵厚度、佩戴前倾角、是否需要放大头壳）。\
@@ -75,6 +75,11 @@ nonisolated enum AIPipeline {
             for suggestion in context.suggestions {
                 lines.append("- \(suggestion)")
             }
+        }
+
+        if let geometry, !geometry.isEmpty {
+            lines.append("补充几何数据（降采样）：")
+            lines.append(geometry)
         }
 
         return [
@@ -133,7 +138,7 @@ nonisolated enum AIPipeline {
         )
     }
 
-    static func shellMessages(context: ShellContext) -> [LLMMessage] {
+    static func shellMessages(context: ShellContext, geometry: String? = nil) -> [LLMMessage] {
         let system = """
         你是 Kigurumi 头壳定制工作室的技术顾问。根据提供的头壳内部尺寸数据，用中文写一段 120~200 字的规格解读，面向店家与建模方：        先一句话概括这是什么类型的头壳（容积大小/脸型宽窄/头围适配倾向），再引用关键数值说明（内腔宽度、脸碗、内腔高、眼孔），        最后给 1~2 条使用建议（适合的头围区间、海绵配置或需要注意的适配点）。只使用提供的数据，不要编造任何数值，不要使用 Markdown。
         """
@@ -159,9 +164,47 @@ nonisolated enum AIPipeline {
         if let notes = context.notes, !notes.isEmpty {
             lines.append("备注：\(notes)")
         }
+        if let geometry, !geometry.isEmpty {
+            lines.append("补充几何数据（降采样）：")
+            lines.append(geometry)
+        }
         return [
             LLMMessage(role: "system", content: system),
             LLMMessage(role: "user", content: lines.joined(separator: "\n"))
         ]
+    }
+
+    static func contourBlock(from contours: [ShellProfilePayload.ContourLine]) -> String? {
+        guard !contours.isEmpty else { return nil }
+        var lines = ["内腔截面轮廓采样（单位 mm，俯视平面坐标 x=左右 / y=前后，fraction=相对内底高度比例）："]
+        for contour in contours {
+            var pairs: [String] = []
+            var index = 0
+            while index + 1 < contour.points.count {
+                pairs.append(String(format: "(%.0f,%.0f)", contour.points[index], contour.points[index + 1]))
+                index += 2
+            }
+            lines.append(String(format: "fraction %.2f：%@", contour.fraction, pairs.joined(separator: " ")))
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    @MainActor
+    static func faceGeometrySummary(for record: ScanRecord, maxPoints: Int = 160) -> String? {
+        guard let data = record.meshData,
+              let capture = FaceMeshCodec.decode(data),
+              !capture.averagedVertices.isEmpty else {
+            return nil
+        }
+        let vertices = capture.averagedVertices
+        let stride = max(1, vertices.count / maxPoints)
+        var pairs: [String] = []
+        var index = 0
+        while index < vertices.count {
+            let vertex = vertices[index]
+            pairs.append(String(format: "(%.0f,%.0f,%.0f)", Double(vertex.x) * 1000, Double(vertex.y) * 1000, Double(vertex.z) * 1000))
+            index += stride
+        }
+        return "面部网格采样点（单位 mm，人脸坐标系）：\n" + pairs.joined(separator: " ")
     }
 }

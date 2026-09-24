@@ -26,6 +26,7 @@ nonisolated struct ShellAnalysis: Sendable {
     var widthProfile: [ProfilePoint]
     var depthProfile: [ProfilePoint]
     var faceBowlWidth: Double?
+    var contourSamples: [ShellProfilePayload.ContourLine]
     var eyeHoles: EyeHoles?
     var componentSummaries: [String]
     var notes: [String]
@@ -49,7 +50,8 @@ nonisolated struct ShellAnalysis: Sendable {
                 wallThickness: wallThickness,
                 widthProfile: widthProfile.map { .init(z: $0.z, width: $0.value, fraction: $0.fraction) },
                 depthProfile: depthProfile.map { .init(z: $0.z, depth: $0.value, fraction: $0.fraction) },
-                faceBowlWidth: faceBowlWidth
+                faceBowlWidth: faceBowlWidth,
+                contours: contourSamples.isEmpty ? nil : contourSamples
             ),
             eyeHoles: eyeHoles.map {
                 .init(width: $0.width, height: $0.height, centerSpacing: $0.spacing, centerAboveInnerBottom: $0.aboveInnerBottom)
@@ -347,6 +349,39 @@ nonisolated enum ShellAnalyzer {
 
         let bowl = widthAt(innerBottomZ + innerHeight * 0.225)
 
+        var contourSamples: [ShellProfilePayload.ContourLine] = []
+        for fraction in [0.2, 0.35, 0.5, 0.65, 0.8] {
+            let z = innerBottomZ + innerHeight * fraction
+            var points: [SIMD3<Float>] = []
+            for p in frontInner where abs(Double(p.z) - z) < zTolerance {
+                points.append(p)
+            }
+            for p in backInner where abs(Double(p.z) - z) < zTolerance {
+                points.append(p)
+            }
+            guard points.count >= 12 else { continue }
+            var cx = 0.0
+            var cy = 0.0
+            for p in points {
+                cx += Double(p.x)
+                cy += Double(p.y)
+            }
+            cx /= Double(points.count)
+            cy /= Double(points.count)
+            let sorted = points.sorted {
+                atan2(Double($0.y) - cy, Double($0.x) - cx) < atan2(Double($1.y) - cy, Double($1.x) - cx)
+            }
+            let stride = max(1, sorted.count / 16)
+            var flat: [Double] = []
+            var index = 0
+            while index < sorted.count {
+                flat.append((Double(sorted[index].x) * 10).rounded() / 10)
+                flat.append((Double(sorted[index].y) * 10).rounded() / 10)
+                index += stride
+            }
+            contourSamples.append(.init(fraction: fraction, points: flat))
+        }
+
         let eyeHoles: ShellAnalysis.EyeHoles? = rawEyes.map { eyes in
             let canonicalCenterZ = eyes.centerZ * (upPositive ? 1 : -1)
             return ShellAnalysis.EyeHoles(
@@ -404,6 +439,7 @@ nonisolated enum ShellAnalyzer {
             widthProfile: widthProfile,
             depthProfile: depthProfile,
             faceBowlWidth: bowl,
+            contourSamples: contourSamples,
             eyeHoles: eyeHoles,
             componentSummaries: summaries,
             notes: notes

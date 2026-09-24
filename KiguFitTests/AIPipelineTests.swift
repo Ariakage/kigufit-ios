@@ -42,6 +42,48 @@ struct AIPipelineTests {
         #expect(messages[1].content.contains("213.0"))
         #expect(messages[1].content.contains("520–620"))
     }
+
+    @Test func recordPromptIncludesGeometryWhenProvided() {
+        let context = AIPipeline.ReportContext(
+            clientName: "客户A",
+            shellName: "测试壳",
+            dateText: "2026/9/24",
+            measurements: [],
+            verdictLevel: nil,
+            verdictSummary: nil,
+            checks: [],
+            suggestions: []
+        )
+        let messages = AIPipeline.recordMessages(context: context, geometry: "(1,2,3)")
+        #expect(messages[1].content.contains("(1,2,3)"))
+        #expect(messages[1].content.contains("补充几何数据"))
+    }
+
+    @Test func contourBlockFormatsPoints() {
+        let contours = [ShellProfilePayload.ContourLine(fraction: 0.5, points: [10, 20, 30, 40])]
+        let block = AIPipeline.contourBlock(from: contours)
+        #expect(block?.contains("(10,20)") == true)
+        #expect(block?.contains("(30,40)") == true)
+    }
+
+    @MainActor
+    @Test func faceGeometrySummarySamplesMesh() {
+        let capture = ScanCaptureResult(
+            averagedVertices: [SIMD3<Float>(0, 0, 0), SIMD3<Float>(0.1, 0.05, 0.02)],
+            leftEye: .zero,
+            rightEye: .zero,
+            faceTransform: [],
+            frames: [],
+            quality: 1,
+            capturedAt: Date()
+        )
+        let data = FaceMeshCodec.encode(capture)
+        let record = ScanRecord(clientName: "x", shellName: "y")
+        record.meshData = data
+        let summary = AIPipeline.faceGeometrySummary(for: record)
+        #expect(summary?.contains("(0,0,0)") == true)
+        #expect(summary?.contains("(100,50,20)") == true)
+    }
 }
 
 struct LLMClientTests {
