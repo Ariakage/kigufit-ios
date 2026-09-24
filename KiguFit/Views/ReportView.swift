@@ -11,6 +11,7 @@ struct ReportView: View {
     @State private var isEditingMeasurements = false
     @State private var isRenamingClient = false
     @State private var newClientName = ""
+    @State private var isShowingScaleAdvisor = false
 
     private var tapeEntries: [MeasurementKey: Double] {
         Dictionary(
@@ -68,6 +69,13 @@ struct ReportView: View {
                         } label: {
                             Label("重命名客户", systemImage: "person.text.rectangle")
                         }
+                        if record.shellPayload != nil {
+                            Button {
+                                isShowingScaleAdvisor = true
+                            } label: {
+                                Label("头壳放大试算", systemImage: "arrow.up.left.and.arrow.down.right")
+                            }
+                        }
                     } label: {
                         Text("编辑")
                     }
@@ -102,6 +110,11 @@ struct ReportView: View {
                 )
                 .navigationTitle("编辑测量值")
                 .navigationBarTitleDisplayMode(.inline)
+            }
+        }
+        .sheet(isPresented: $isShowingScaleAdvisor) {
+            if let payload = record.shellPayload {
+                ScaleAdvisorView(shell: payload, measurements: record.measurements)
             }
         }
         .task {
