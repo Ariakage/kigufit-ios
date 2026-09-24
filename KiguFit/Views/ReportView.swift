@@ -149,8 +149,8 @@ struct ReportView: View {
         if let headWidth = record.measurements.value(for: .headWidth)?.valueMM,
            let headDepth = record.measurements.value(for: .headDepth)?.valueMM,
            let shell = record.shellPayload,
-           let shellWidth = shell.inner.innerWidth(nearest: 20),
-           let shellDepth = shell.inner.depthProfile?.min(by: { abs($0.z - 20) < abs($1.z - 20) })?.depth {
+           let shellWidth = shell.inner.bandWidth(),
+           let shellDepth = shell.inner.bandDepth() {
             Section("俯视对照（示意）") {
                 FitOverlayChart(
                     headWidth: headWidth,

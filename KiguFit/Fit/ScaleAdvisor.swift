@@ -48,7 +48,7 @@ nonisolated struct ScaleAdvisor {
 
         var requirements: [Requirement] = []
 
-        if let headWidth = value(.headWidth), let band = shell.inner.innerWidth(nearest: 20) {
+        if let headWidth = value(.headWidth), let band = shell.inner.bandWidth() {
             requirements.append(Requirement(
                 id: "band",
                 title: "头带内宽",
@@ -82,7 +82,7 @@ nonisolated struct ScaleAdvisor {
         }
 
         if let length = value(.headDepth),
-           let depth = shell.inner.depthProfile?.min(by: { abs($0.z - 20) < abs($1.z - 20) })?.depth {
+           let depth = shell.inner.bandDepth() {
             requirements.append(Requirement(
                 id: "depth",
                 title: "内腔深度",

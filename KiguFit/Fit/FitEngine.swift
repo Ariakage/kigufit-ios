@@ -34,7 +34,7 @@ nonisolated enum FitEngine {
         var loose = false
         var alignmentFailed = false
 
-        if let bandWidth = shell.inner.innerWidth(nearest: 20), let headWidth = value(.headWidth) {
+        if let bandWidth = shell.inner.bandWidth(), let headWidth = value(.headWidth) {
             let marginPerSide = (bandWidth - headWidth) / 2
             var status = FitVerdict.Check.Status.ok
             if marginPerSide < thresholds.minPaddingPerSide {

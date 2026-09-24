@@ -7,6 +7,8 @@ struct ShellsView: View {
     @Query(sort: \ShellProfile.createdAt) private var shells: [ShellProfile]
     @State private var isShowingImporter = false
     @State private var importError: String?
+    @State private var isShowingOBJImporter = false
+    @State private var analyzer = ShellAnalyzerModel()
 
     var body: some View {
         NavigationStack {
@@ -50,6 +52,11 @@ struct ShellsView: View {
                         } label: {
                             Label("导入 JSON 档案", systemImage: "square.and.arrow.down")
                         }
+                        Button {
+                            isShowingOBJImporter = true
+                        } label: {
+                            Label("分析 OBJ 生成档案", systemImage: "wand.and.stars")
+                        }
                     } label: {
                         Label("添加", systemImage: "plus")
                     }
@@ -61,6 +68,50 @@ struct ShellsView: View {
                 allowsMultipleSelection: true
             ) { result in
                 handleImport(result)
+            }
+            .fileImporter(
+                isPresented: $isShowingOBJImporter,
+                allowedContentTypes: [UTType(filenameExtension: "obj") ?? .data],
+                allowsMultipleSelection: false
+            ) { result in
+                if case let .success(urls) = result, let url = urls.first {
+                    analyzer.analyze(url: url)
+                }
+            }
+            .overlay {
+                if analyzer.isAnalyzing {
+                    ZStack {
+                        Color.black.opacity(0.12).ignoresSafeArea()
+                        VStack(spacing: 12) {
+                            ProgressView()
+                            Text("正在分析 OBJ 网格…")
+                                .font(.callout)
+                        }
+                        .padding(20)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+                    }
+                }
+            }
+            .sheet(isPresented: Binding(
+                get: { analyzer.preview != nil },
+                set: { if !$0 { analyzer.clearPreview() } }
+            )) {
+                if let preview = analyzer.preview {
+                    ShellAnalysisPreviewView(analysis: preview) { name in
+                        saveAnalysis(preview, name: name)
+                    }
+                }
+            }
+            .alert(
+                "分析失败",
+                isPresented: Binding(
+                    get: { analyzer.errorMessage != nil },
+                    set: { if !$0 { analyzer.errorMessage = nil } }
+                )
+            ) {
+                Button("好", role: .cancel) {}
+            } message: {
+                Text(analyzer.errorMessage ?? "")
             }
             .alert(
                 "导入失败",
@@ -80,6 +131,12 @@ struct ShellsView: View {
         withAnimation {
             modelContext.insert(ShellProfile(payload: SampleShell.payload))
         }
+    }
+
+    private func saveAnalysis(_ analysis: ShellAnalysis, name: String) {
+        var payload = analysis.payload(sourceFile: analysis.sourceFile)
+        payload.name = name
+        modelContext.insert(ShellProfile(payload: payload, sourceFileName: analysis.sourceFile))
     }
 
     private func deleteShells(offsets: IndexSet) {
@@ -137,7 +194,7 @@ struct ShellDetailView: View {
                     if let bowl = payload.inner.faceBowlWidth {
                         LabeledContent("脸碗内宽", value: mm(bowl))
                     }
-                    if let bandWidth = payload.inner.innerWidth(nearest: 20) {
+                    if let bandWidth = payload.inner.bandWidth() {
                         LabeledContent("头带高度内宽", value: mm(bandWidth))
                     }
                 }
