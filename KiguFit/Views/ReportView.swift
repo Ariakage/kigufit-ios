@@ -32,6 +32,7 @@ struct ReportView: View {
     var body: some View {
         List {
             verdictSection
+            overlaySection
             if let verdict = record.verdict {
                 if !verdict.checks.isEmpty {
                     Section("对照明细") {
@@ -139,6 +140,28 @@ struct ReportView: View {
             } else {
                 Text("未选择头壳档案，未生成适配结论")
                     .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var overlaySection: some View {
+        if let headWidth = record.measurements.value(for: .headWidth)?.valueMM,
+           let headDepth = record.measurements.value(for: .headDepth)?.valueMM,
+           let shell = record.shellPayload,
+           let shellWidth = shell.inner.innerWidth(nearest: 20),
+           let shellDepth = shell.inner.depthProfile?.min(by: { abs($0.z - 20) < abs($1.z - 20) })?.depth {
+            Section("俯视对照（示意）") {
+                FitOverlayChart(
+                    headWidth: headWidth,
+                    headDepth: headDepth,
+                    shellWidth: shellWidth,
+                    shellDepth: shellDepth
+                )
+                .padding(.vertical, 4)
+                Text(String(format: "蓝=头部 %.0f×%.0f mm ｜ 灰=头壳内腔 %.0f×%.0f mm（宽×深，头带高度）", headWidth, headDepth, shellWidth, shellDepth))
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
             }
         }
     }

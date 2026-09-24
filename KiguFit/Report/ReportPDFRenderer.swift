@@ -40,6 +40,7 @@ enum ReportPDFRenderer {
             layout.beginPage()
             layout.footer("KiguFit · 数据页 · \(dateText)")
             drawMeasurements(&layout, measurements: measurements)
+            drawFitOverlay(&layout, record: record)
             drawShellInfo(&layout, shell: shell, shellName: record.shellName)
         }
     }
@@ -288,6 +289,59 @@ enum ReportPDFRenderer {
             layout.y += 17
         }
         layout.space(16)
+    }
+
+    private static func drawFitOverlay(_ layout: inout Layout, record: ScanRecord) {
+        guard let headWidth = record.measurements.value(for: .headWidth)?.valueMM,
+              let headDepth = record.measurements.value(for: .headDepth)?.valueMM,
+              let shell = record.shellPayload,
+              let shellWidth = shell.inner.innerWidth(nearest: 20),
+              let shellDepth = shell.inner.depthProfile?.min(by: { abs($0.z - 20) < abs($1.z - 20) })?.depth else {
+            return
+        }
+
+        layout.draw("俯视对照（示意）", font: .systemFont(ofSize: 14, weight: .semibold), spacing: 8)
+
+        let boxWidth: CGFloat = 320
+        let boxHeight: CGFloat = 150
+        layout.ensure(boxHeight + 36)
+
+        let scale = min(boxWidth / CGFloat(shellDepth), boxHeight / CGFloat(shellWidth))
+        let center = CGPoint(x: margin + boxWidth / 2, y: layout.y + boxHeight / 2)
+
+        let shellRect = CGRect(
+            x: center.x - CGFloat(shellDepth) * scale / 2,
+            y: center.y - CGFloat(shellWidth) * scale / 2,
+            width: CGFloat(shellDepth) * scale,
+            height: CGFloat(shellWidth) * scale
+        )
+        let shellPath = UIBezierPath(ovalIn: shellRect)
+        UIColor(white: 0.94, alpha: 1).setFill()
+        shellPath.fill()
+        UIColor(white: 0.55, alpha: 1).setStroke()
+        shellPath.lineWidth = 1.5
+        shellPath.stroke()
+
+        let headRect = CGRect(
+            x: center.x - CGFloat(headDepth) * scale / 2,
+            y: center.y - CGFloat(headWidth) * scale / 2,
+            width: CGFloat(headDepth) * scale,
+            height: CGFloat(headWidth) * scale
+        )
+        let headPath = UIBezierPath(ovalIn: headRect)
+        levelBlue.withAlphaComponent(0.22).setFill()
+        headPath.fill()
+        levelBlue.setStroke()
+        headPath.lineWidth = 2
+        headPath.stroke()
+
+        layout.y += boxHeight + 6
+        layout.draw(
+            String(format: "蓝 = 头部 %.0f×%.0f mm ｜ 灰 = 头壳内腔 %.0f×%.0f mm（宽×深，头带高度）", headWidth, headDepth, shellWidth, shellDepth),
+            font: .systemFont(ofSize: 10),
+            color: inkTertiary,
+            spacing: 12
+        )
     }
 
     private static func drawShellInfo(_ layout: inout Layout, shell: ShellProfilePayload?, shellName: String) {
